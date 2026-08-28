@@ -1,21 +1,38 @@
 """
 ProofFlow Onchain Evidence Adapter
-v0.1.0
+v0.2.0
 
-Normalizes blockchain transaction data into a predictable
-evidence format that can be evaluated by the ProofFlow
-GenLayer Intelligent Contract.
+Normalizes live blockchain transaction data into a standard
+ProofFlow evidence document.
 
-This adapter does NOT decide whether a campaign passes.
-It only prepares evidence. GenLayer validators make the
-trust-critical PASS / FAIL decision through consensus.
+IMPORTANT:
+This adapter does NOT decide whether a participant passes or fails
+a campaign requirement.
+
+Its job is only to:
+1. Retrieve authoritative blockchain evidence.
+2. Normalize that evidence.
+3. Produce a standard evidence document.
+
+The GenLayer Intelligent Contract remains responsible for the
+trust-critical PASS / FAIL decision through validator consensus.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
-from typing import Any
 import json
+import sys
+from dataclasses import asdict, dataclass
+from typing import Any
+
+from ethereum_rpc import fetch_transaction_evidence
+
+
+# ==========================================================
+# PROOFFLOW VERSION
+# ==========================================================
+
+PROOFFLOW_VERSION = "0.2.0"
 
 
 # ==========================================================
@@ -27,7 +44,9 @@ class OnchainEvidence:
     evidence_type: str
 
     participant: str
+
     chain: str
+    chain_id: int
 
     transaction_hash: str
     block_number: int
@@ -45,34 +64,38 @@ class OnchainEvidence:
     amount: str
     unit: str
 
+    native_value_wei: str
+
+    input: str
+
+    gas: str
+    gas_used: str
+
     source: str
-
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
-
-    def to_json(self) -> str:
-        return json.dumps(
-            self.to_dict(),
-            indent=2
-        )
 
 
 # ==========================================================
-# VALIDATION HELPERS
+# BASIC NORMALIZATION HELPERS
 # ==========================================================
 
 def require_text(
     value: Any,
     field_name: str
 ) -> str:
+    """
+    Require a non-empty string value.
+    """
 
-    text = str(
-        value if value is not None else ""
-    ).strip()
+    if value is None:
+        raise ValueError(
+            field_name + " is required"
+        )
+
+    text = str(value).strip()
 
     if text == "":
         raise ValueError(
-            f"{field_name} is required"
+            field_name + " is required"
         )
 
     return text
@@ -81,262 +104,374 @@ def require_text(
 def normalize_address(
     value: Any
 ) -> str:
+    """
+    Normalize an Ethereum-style address to lowercase.
+    """
 
-    return require_text(
-        value,
-        "address"
-    ).lower()
+    if value is None:
+        return ""
+
+    return str(value).strip().lower()
 
 
 def normalize_chain(
     value: Any
 ) -> str:
+    """
+    Normalize blockchain/network names.
+    """
 
-    return require_text(
+    chain = require_text(
         value,
         "chain"
     ).lower()
+
+    aliases = {
+        "ethereum mainnet": "ethereum",
+        "mainnet": "ethereum",
+        "eth": "ethereum",
+
+        "ethereum sepolia": "sepolia",
+        "eth sepolia": "sepolia",
+        "sepolia testnet": "sepolia"
+    }
+
+    return aliases.get(
+        chain,
+        chain
+    )
 
 
 def normalize_status(
     value: Any
 ) -> str:
+    """
+    Normalize transaction status.
+    """
 
-    text = require_text(
+    status = require_text(
         value,
         "transaction_status"
-    ).lower()
+    ).upper()
 
-    success_values = {
-        "success",
-        "successful",
-        "confirmed",
-        "1",
-        "true"
+    aliases = {
+        "1": "SUCCESS",
+        "TRUE": "SUCCESS",
+        "SUCCEEDED": "SUCCESS",
+        "CONFIRMED": "SUCCESS",
+
+        "0": "FAILED",
+        "FALSE": "FAILED",
+        "REVERTED": "FAILED"
     }
 
-    failed_values = {
-        "failed",
-        "failure",
-        "reverted",
-        "0",
-        "false"
-    }
+    return aliases.get(
+        status,
+        status
+    )
 
-    if text in success_values:
-        return "SUCCESS"
 
-    if text in failed_values:
-        return "FAILED"
+def normalize_text(
+    value: Any
+) -> str:
+    """
+    Normalize optional text.
+    """
 
-    return text.upper()
+    if value is None:
+        return ""
+
+    return str(value).strip()
 
 
 # ==========================================================
-# TRANSACTION NORMALIZER
+# TRANSACTION NORMALIZATION
 # ==========================================================
 
 def normalize_transaction(
     *,
-    participant: str,
-    chain: str,
-    transaction_hash: str,
-    block_number: int,
-    timestamp: int,
-    transaction_status: str,
-    sender: str,
-    recipient: str,
-    protocol: str,
-    action: str,
-    asset: str,
-    amount: str,
-    unit: str,
-    source: str
+    participant: Any,
+    chain: Any,
+    chain_id: Any,
+    transaction_hash: Any,
+    block_number: Any,
+    timestamp: Any,
+    transaction_status: Any,
+    sender: Any,
+    recipient: Any,
+    protocol: Any = "",
+    action: Any = "",
+    asset: Any = "",
+    amount: Any = "",
+    unit: Any = "",
+    native_value_wei: Any = "0",
+    input_data: Any = "0x",
+    gas: Any = "",
+    gas_used: Any = "",
+    source: Any = ""
 ) -> OnchainEvidence:
     """
-    Convert blockchain transaction information into
-    ProofFlow's normalized evidence format.
+    Convert transaction data into ProofFlow's canonical
+    ONCHAIN_TRANSACTION evidence format.
     """
 
-    participant_address = normalize_address(
+    normalized_participant = normalize_address(
         participant
     )
 
-    sender_address = normalize_address(
+    normalized_sender = normalize_address(
         sender
     )
 
-    recipient_address = normalize_address(
+    normalized_recipient = normalize_address(
         recipient
     )
 
-    if block_number < 0:
-        raise ValueError(
-            "block_number cannot be negative"
-        )
+    normalized_chain = normalize_chain(
+        chain
+    )
 
-    if timestamp < 0:
-        raise ValueError(
-            "timestamp cannot be negative"
+    tx_hash = require_text(
+        transaction_hash,
+        "transaction_hash"
+    ).lower()
+
+    try:
+        normalized_chain_id = int(
+            chain_id
         )
+    except (TypeError, ValueError) as error:
+        raise ValueError(
+            "chain_id must be an integer"
+        ) from error
+
+    try:
+        normalized_block_number = int(
+            block_number
+        )
+    except (TypeError, ValueError) as error:
+        raise ValueError(
+            "block_number must be an integer"
+        ) from error
+
+    try:
+        normalized_timestamp = int(
+            timestamp
+        )
+    except (TypeError, ValueError) as error:
+        raise ValueError(
+            "timestamp must be an integer"
+        ) from error
+
+    if normalized_participant == "":
+        normalized_participant = normalized_sender
 
     return OnchainEvidence(
         evidence_type="ONCHAIN_TRANSACTION",
 
-        participant=participant_address,
-        chain=normalize_chain(
-            chain
-        ),
+        participant=normalized_participant,
 
-        transaction_hash=require_text(
-            transaction_hash,
-            "transaction_hash"
-        ),
+        chain=normalized_chain,
+        chain_id=normalized_chain_id,
 
-        block_number=int(
-            block_number
-        ),
-
-        timestamp=int(
-            timestamp
-        ),
+        transaction_hash=tx_hash,
+        block_number=normalized_block_number,
+        timestamp=normalized_timestamp,
 
         transaction_status=normalize_status(
             transaction_status
         ),
 
-        sender=sender_address,
-        recipient=recipient_address,
+        sender=normalized_sender,
+        recipient=normalized_recipient,
 
-        protocol=require_text(
-            protocol,
-            "protocol"
+        protocol=normalize_text(
+            protocol
         ).lower(),
 
-        action=require_text(
-            action,
-            "action"
+        action=normalize_text(
+            action
         ).lower(),
 
-        asset=require_text(
-            asset,
-            "asset"
-        ).upper(),
-
-        amount=require_text(
-            amount,
-            "amount"
+        asset=normalize_text(
+            asset
         ),
 
-        unit=require_text(
-            unit,
-            "unit"
-        ).upper(),
+        amount=normalize_text(
+            amount
+        ),
 
-        source=require_text(
-            source,
-            "source"
+        unit=normalize_text(
+            unit
+        ),
+
+        native_value_wei=normalize_text(
+            native_value_wei
+        ),
+
+        input=normalize_text(
+            input_data
+        ),
+
+        gas=normalize_text(
+            gas
+        ),
+
+        gas_used=normalize_text(
+            gas_used
+        ),
+
+        source=normalize_text(
+            source
         )
     )
 
 
 # ==========================================================
-# GENERIC PROVIDER PAYLOAD
+# PROVIDER PAYLOAD NORMALIZATION
 # ==========================================================
 
 def from_provider_payload(
     payload: dict[str, Any]
 ) -> OnchainEvidence:
     """
-    Normalize an already-decoded blockchain provider
-    response.
-
-    Keeping this function provider-neutral allows
-    ProofFlow to support multiple RPC/indexing providers
-    later without changing the Intelligent Contract.
+    Normalize a provider/RPC evidence payload.
     """
+
+    if not isinstance(
+        payload,
+        dict
+    ):
+        raise ValueError(
+            "Provider payload must be an object."
+        )
 
     return normalize_transaction(
         participant=payload.get(
             "participant",
-            payload.get("sender", "")
+            payload.get(
+                "sender",
+                ""
+            )
         ),
 
         chain=payload.get(
             "chain",
-            ""
+            payload.get(
+                "network",
+                ""
+            )
+        ),
+
+        chain_id=payload.get(
+            "chain_id",
+            0
         ),
 
         transaction_hash=payload.get(
             "transaction_hash",
-            payload.get("tx_hash", "")
+            ""
         ),
 
-        block_number=int(
-            payload.get(
-                "block_number",
-                0
-            )
+        block_number=payload.get(
+            "block_number",
+            0
         ),
 
-        timestamp=int(
-            payload.get(
-                "timestamp",
-                0
-            )
+        timestamp=payload.get(
+            "timestamp",
+            0
         ),
 
-        transaction_status=str(
-            payload.get(
-                "transaction_status",
-                payload.get(
-                    "status",
-                    ""
-                )
-            )
+        transaction_status=payload.get(
+            "transaction_status",
+            ""
         ),
 
         sender=payload.get(
             "sender",
-            payload.get("from", "")
+            ""
         ),
 
         recipient=payload.get(
             "recipient",
-            payload.get("to", "")
+            ""
         ),
 
         protocol=payload.get(
             "protocol",
-            "unknown"
+            ""
         ),
 
         action=payload.get(
             "action",
-            "transaction"
+            ""
         ),
 
         asset=payload.get(
             "asset",
-            "UNKNOWN"
+            ""
         ),
 
-        amount=str(
-            payload.get(
-                "amount",
-                "0"
-            )
+        amount=payload.get(
+            "amount",
+            ""
         ),
 
         unit=payload.get(
             "unit",
-            "UNKNOWN"
+            ""
+        ),
+
+        native_value_wei=payload.get(
+            "native_value_wei",
+            "0"
+        ),
+
+        input_data=payload.get(
+            "input",
+            "0x"
+        ),
+
+        gas=payload.get(
+            "gas",
+            ""
+        ),
+
+        gas_used=payload.get(
+            "gas_used",
+            ""
         ),
 
         source=payload.get(
             "source",
-            "blockchain-provider"
+            ""
         )
+    )
+
+
+# ==========================================================
+# LIVE ETHEREUM / SEPOLIA EVIDENCE
+# ==========================================================
+
+def from_live_transaction(
+    transaction_hash: str,
+    network: str = "sepolia"
+) -> OnchainEvidence:
+    """
+    Fetch a real blockchain transaction through the
+    ProofFlow Ethereum RPC adapter and normalize it.
+
+    Sepolia is the default development network.
+    """
+
+    raw_evidence = fetch_transaction_evidence(
+        transaction_hash,
+        network
+    )
+
+    return from_provider_payload(
+        raw_evidence
     )
 
 
@@ -348,19 +483,28 @@ def build_evidence_document(
     evidence: OnchainEvidence
 ) -> dict[str, Any]:
     """
-    Build the document that can be published to an
-    evidence endpoint and consumed by ProofFlow.
+    Wrap normalized evidence in ProofFlow's standard
+    evidence document.
     """
 
     return {
-        "proof_flow_version": "0.1.0",
-        "evidence": evidence.to_dict()
+        "proof_flow_version":
+            PROOFFLOW_VERSION,
+
+        "evidence":
+            asdict(
+                evidence
+            )
     }
 
 
 def evidence_document_json(
     evidence: OnchainEvidence
 ) -> str:
+    """
+    Return a formatted JSON representation of the
+    ProofFlow evidence document.
+    """
 
     return json.dumps(
         build_evidence_document(
@@ -371,20 +515,56 @@ def evidence_document_json(
 
 
 # ==========================================================
+# LIVE TRANSACTION DOCUMENT
+# ==========================================================
+
+def build_live_transaction_document(
+    transaction_hash: str,
+    network: str = "sepolia"
+) -> dict[str, Any]:
+    """
+    Complete ProofFlow evidence pipeline:
+
+    blockchain
+        ->
+    Ethereum RPC adapter
+        ->
+    normalized evidence
+        ->
+    ProofFlow evidence document
+    """
+
+    evidence = from_live_transaction(
+        transaction_hash,
+        network
+    )
+
+    return build_evidence_document(
+        evidence
+    )
+
+
+# ==========================================================
 # DEVELOPMENT DEMO
 # ==========================================================
 
-if __name__ == "__main__":
+def development_demo() -> dict[str, Any]:
+    """
+    Local example used when no transaction hash is supplied.
+    """
 
-    demo_payload = {
+    payload = {
         "participant":
             "0x24199034c9cede510b35f37471d553f25c84e9eb",
 
         "chain":
-            "ethereum",
+            "sepolia",
+
+        "chain_id":
+            11155111,
 
         "transaction_hash":
-            "0xprooflow-demo-transaction",
+            "0xproofflow-development-demo",
 
         "block_number":
             123456,
@@ -393,7 +573,7 @@ if __name__ == "__main__":
             1787890000,
 
         "transaction_status":
-            "success",
+            "SUCCESS",
 
         "sender":
             "0x24199034c9cede510b35f37471d553f25c84e9eb",
@@ -416,16 +596,88 @@ if __name__ == "__main__":
         "unit":
             "USD",
 
+        "native_value_wei":
+            "0",
+
+        "input":
+            "0x",
+
+        "gas":
+            "100000",
+
+        "gas_used":
+            "50000",
+
         "source":
-            "prooflow-development-demo"
+            "proofflow-development-demo"
     }
 
-    normalized = from_provider_payload(
-        demo_payload
+    evidence = from_provider_payload(
+        payload
     )
 
-    print(
-        evidence_document_json(
-            normalized
-        )
+    return build_evidence_document(
+        evidence
     )
+
+
+# ==========================================================
+# COMMAND LINE
+# ==========================================================
+
+def main() -> None:
+    """
+    Usage:
+
+    Development demo:
+        python adapters\\onchain_adapter.py
+
+    Live Sepolia transaction:
+        python adapters\\onchain_adapter.py <tx_hash>
+
+    Explicit network:
+        python adapters\\onchain_adapter.py <tx_hash> sepolia
+
+        python adapters\\onchain_adapter.py <tx_hash> ethereum
+    """
+
+    try:
+
+        if len(sys.argv) == 1:
+
+            document = development_demo()
+
+        else:
+
+            transaction_hash = sys.argv[1]
+
+            network = (
+                sys.argv[2]
+                if len(sys.argv) >= 3
+                else "sepolia"
+            )
+
+            document = build_live_transaction_document(
+                transaction_hash,
+                network
+            )
+
+        print(
+            json.dumps(
+                document,
+                indent=2
+            )
+        )
+
+    except Exception as error:
+
+        print(
+            "ERROR:",
+            str(error)
+        )
+
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
