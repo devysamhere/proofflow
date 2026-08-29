@@ -60,7 +60,12 @@ function App() {
     document.body.style.overflow = "hidden";
 
     const handleKeyDown = (event) => {
-      if (event.key === "Escape") {
+      if (
+        event.key === "Escape" &&
+        verificationStatus !== "connecting" &&
+        verificationStatus !== "submitting" &&
+        verificationStatus !== "waiting"
+      ) {
         setShowVerification(false);
       }
     };
@@ -71,7 +76,7 @@ function App() {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [showVerification]);
+  }, [showVerification, verificationStatus]);
 
   const connectWallet = async () => {
     if (!window.ethereum) {
@@ -195,6 +200,9 @@ function App() {
                 ? 3
                 : 0;
 
+  const hasCompletedResult =
+    verificationStatus === "complete" && verificationResult?.found;
+
   return (
     <div className="app">
       <header className="navbar">
@@ -242,9 +250,7 @@ function App() {
                 Explore Campaigns
               </a>
 
-              <button className="secondaryButton">
-                Create Campaign
-              </button>
+              <button className="secondaryButton">Create Campaign</button>
             </div>
 
             <div className="networkInfo">
@@ -253,15 +259,14 @@ function App() {
 
               <span className="divider">&bull;</span>
 
-              <span>
-                Contract {shortenAddress(CONTRACT_ADDRESS)}
-              </span>
+              <span>Contract {shortenAddress(CONTRACT_ADDRESS)}</span>
             </div>
           </div>
 
           <div className="proofCard">
             <div className="proofHeader">
               <span>LIVE VERIFICATION FLOW</span>
+
               <span className="liveBadge">
                 <span className="livePulse" />
                 LIVE
@@ -356,9 +361,7 @@ function App() {
               <h2>Complete actions. Prove the result.</h2>
             </div>
 
-            <button className="filterButton">
-              All campaigns
-            </button>
+            <button className="filterButton">All campaigns</button>
           </div>
 
           <div className="campaignGrid">
@@ -405,9 +408,7 @@ function App() {
 
                 <div>
                   <span>OUTCOME</span>
-                  <strong>
-                    {campaign?.outcome_value || "Loading..."}
-                  </strong>
+                  <strong>{campaign?.outcome_value || "Loading..."}</strong>
                 </div>
               </div>
 
@@ -423,13 +424,8 @@ function App() {
 
             <article className="campaignCard coming">
               <div className="cardTop">
-                <span className="category developer">
-                  DEVELOPER
-                </span>
-
-                <span className="soonBadge">
-                  COMING NEXT
-                </span>
+                <span className="category developer">DEVELOPER</span>
+                <span className="soonBadge">COMING NEXT</span>
               </div>
 
               <h3>Developer Contribution Quest</h3>
@@ -452,13 +448,8 @@ function App() {
 
             <article className="campaignCard coming">
               <div className="cardTop">
-                <span className="category realworld">
-                  REAL WORLD
-                </span>
-
-                <span className="soonBadge">
-                  COMING NEXT
-                </span>
+                <span className="category realworld">REAL WORLD</span>
+                <span className="soonBadge">COMING NEXT</span>
               </div>
 
               <h3>Real-World Proof Campaign</h3>
@@ -484,20 +475,14 @@ function App() {
         <section className="howSection" id="how">
           <div className="sectionHeading">
             <div>
-              <span className="eyebrow">
-                THE PROOF LAYER
-              </span>
-
-              <h2>
-                From action to trusted outcome.
-              </h2>
+              <span className="eyebrow">THE PROOF LAYER</span>
+              <h2>From action to trusted outcome.</h2>
             </div>
           </div>
 
           <div className="howGrid">
             <div>
               <span>01</span>
-
               <h3>Define</h3>
 
               <p>
@@ -508,7 +493,6 @@ function App() {
 
             <div>
               <span>02</span>
-
               <h3>Complete</h3>
 
               <p>
@@ -519,7 +503,6 @@ function App() {
 
             <div>
               <span>03</span>
-
               <h3>Verify</h3>
 
               <p>
@@ -530,7 +513,6 @@ function App() {
 
             <div>
               <span>04</span>
-
               <h3>Unlock</h3>
 
               <p>
@@ -561,7 +543,9 @@ function App() {
           }}
         >
           <div
-            className="verificationModal"
+            className={`verificationModal ${
+              hasCompletedResult ? "resultMode" : ""
+            }`}
             role="dialog"
             aria-modal="true"
             aria-labelledby="verification-title"
@@ -573,12 +557,12 @@ function App() {
                 </span>
 
                 <h3 id="verification-title">
-                  Verify campaign completion
+                  {hasCompletedResult
+                    ? "Verification complete"
+                    : "Verify campaign completion"}
                 </h3>
 
-                <p>
-                  {campaign?.title || "Sepolia ERC20 Transfer Quest"}
-                </p>
+                <p>{campaign?.title || "Sepolia ERC20 Transfer Quest"}</p>
               </div>
 
               <button
@@ -604,59 +588,96 @@ function App() {
 
               <div>
                 <span>OUTCOME</span>
-                <strong>
-                  {campaign?.outcome_value || "DEMO_REWARD"}
-                </strong>
+                <strong>{campaign?.outcome_value || "DEMO_REWARD"}</strong>
               </div>
             </div>
 
             <div className="verificationProgress">
-              <div className={currentStep >= 1 ? "progressStep active" : "progressStep"}>
-                <span>1</span>
+              <div
+                className={
+                  currentStep >= 1 ? "progressStep active" : "progressStep"
+                }
+              >
+                <span>{currentStep > 1 ? "✓" : "1"}</span>
                 <small>Wallet</small>
               </div>
 
-              <div className={currentStep >= 2 ? "progressLine active" : "progressLine"} />
+              <div
+                className={
+                  currentStep >= 2 ? "progressLine active" : "progressLine"
+                }
+              />
 
-              <div className={currentStep >= 2 ? "progressStep active" : "progressStep"}>
-                <span>2</span>
+              <div
+                className={
+                  currentStep >= 2 ? "progressStep active" : "progressStep"
+                }
+              >
+                <span>{currentStep > 2 ? "✓" : "2"}</span>
                 <small>Submit</small>
               </div>
 
-              <div className={currentStep >= 3 ? "progressLine active" : "progressLine"} />
+              <div
+                className={
+                  currentStep >= 3 ? "progressLine active" : "progressLine"
+                }
+              />
 
-              <div className={currentStep >= 3 ? "progressStep active" : "progressStep"}>
-                <span>3</span>
+              <div
+                className={
+                  currentStep >= 3 ? "progressStep active" : "progressStep"
+                }
+              >
+                <span>{currentStep > 3 ? "✓" : "3"}</span>
                 <small>Consensus</small>
               </div>
 
-              <div className={currentStep >= 4 ? "progressLine active" : "progressLine"} />
+              <div
+                className={
+                  currentStep >= 4 ? "progressLine active" : "progressLine"
+                }
+              />
 
-              <div className={currentStep >= 4 ? "progressStep active" : "progressStep"}>
-                <span>4</span>
+              <div
+                className={
+                  currentStep >= 4 ? "progressStep active" : "progressStep"
+                }
+              >
+                <span>{currentStep >= 4 ? "✓" : "4"}</span>
                 <small>Result</small>
               </div>
             </div>
 
             <div className="verificationBody">
-              <p className="verificationCopy">
-                Enter the wallet that completed the required Sepolia action.
-                ProofFlow will retrieve live evidence and submit the verification
-                to GenLayer validators for consensus.
-              </p>
+              {!hasCompletedResult && (
+                <>
+                  <p className="verificationCopy">
+                    Enter the wallet that completed the required Sepolia action.
+                    ProofFlow will retrieve live evidence and submit the
+                    verification to GenLayer validators for consensus.
+                  </p>
 
-              <label className="walletField">
-                <span>Participant wallet</span>
+                  <label className="walletField">
+                    <span>Participant wallet</span>
 
-                <input
-                  value={participantWallet}
-                  onChange={(event) =>
-                    setParticipantWallet(event.target.value)
-                  }
-                  placeholder="0x..."
-                  disabled={isProcessing}
-                />
-              </label>
+                    <input
+                      value={participantWallet}
+                      onChange={(event) =>
+                        setParticipantWallet(event.target.value)
+                      }
+                      placeholder="0x..."
+                      disabled={isProcessing}
+                    />
+                  </label>
+                </>
+              )}
+
+              {hasCompletedResult && (
+                <div className="completedWallet">
+                  <span>PARTICIPANT</span>
+                  <strong>{participantWallet}</strong>
+                </div>
+              )}
 
               <button
                 className="runVerificationButton"
@@ -680,80 +701,96 @@ function App() {
                 <div
                   className={`verificationStatus ${verificationStatus}`}
                 >
-                  <div className="statusHeading">
-                    {isProcessing && (
-                      <span className="verificationSpinner" />
-                    )}
+                  {hasCompletedResult ? (
+                    <>
+                      <div
+                        className={`resultSummary ${
+                          verificationResult.passed ? "pass" : "fail"
+                        }`}
+                      >
+                        <div className="resultSummaryIcon">
+                          {verificationResult.passed ? "✓" : "×"}
+                        </div>
 
-                    <strong>
-                      {verificationMessage}
-                    </strong>
-                  </div>
+                        <div className="resultSummaryCopy">
+                          <span>
+                            {verificationResult.passed
+                              ? "VERIFICATION PASSED"
+                              : "VERIFICATION FAILED"}
+                          </span>
 
-                  {verificationTx && (
-                    <div className="transactionBox">
-                      <span>TRANSACTION</span>
-                      <code>{verificationTx}</code>
-                    </div>
-                  )}
+                          <strong>
+                            {verificationResult.passed
+                              ? "Action successfully verified"
+                              : "Requirements were not satisfied"}
+                          </strong>
 
-                  {verificationResult?.found && (
-                    <div className="verificationResult">
-                      <div className="resultHeader">
-                        <span
-                          className={
-                            verificationResult.passed
-                              ? "resultBadge pass"
-                              : "resultBadge fail"
-                          }
-                        >
-                          {verificationResult.passed
-                            ? "PASS"
-                            : "FAIL"}
-                        </span>
+                          <p>{verificationMessage}</p>
+                        </div>
 
-                        <span
+                        <div
                           className={
                             outcomeEligible
                               ? "outcomeBadge eligible"
                               : "outcomeBadge notEligible"
                           }
                         >
-                          {outcomeEligible
-                            ? "OUTCOME ELIGIBLE"
-                            : "NOT ELIGIBLE"}
-                        </span>
+                          {outcomeEligible ? "ELIGIBLE" : "NOT ELIGIBLE"}
+                        </div>
                       </div>
 
-                      <div className="resultSection">
-                        <span>CONSENSUS REASONING</span>
+                      <div className="resultDetailsGrid">
+                        <div className="resultDetailCard">
+                          <span>CONSENSUS REASONING</span>
+                          <p>{verificationResult.reasoning}</p>
+                        </div>
 
-                        <p>
-                          {verificationResult.reasoning}
-                        </p>
+                        {verificationResult.evidence_ref && (
+                          <div className="resultDetailCard">
+                            <span>EVIDENCE</span>
+                            <p>{verificationResult.evidence_ref}</p>
+                          </div>
+                        )}
                       </div>
 
-                      {verificationResult.evidence_ref && (
-                        <div className="resultSection">
-                          <span>EVIDENCE</span>
-
-                          <p className="evidenceText">
-                            {verificationResult.evidence_ref}
-                          </p>
+                      {verificationTx && (
+                        <div className="compactTransaction">
+                          <div>
+                            <span>TRANSACTION</span>
+                            <code>{verificationTx}</code>
+                          </div>
                         </div>
                       )}
 
-                      <div className="resultFooter">
+                      <div className="resultMeta">
                         <span>
                           Verification #
                           {verificationResult.verification_id}
                         </span>
 
-                        <span>
+                        <span className="storedBadge">
+                          <i />
                           Stored on GenLayer
                         </span>
                       </div>
-                    </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="statusHeading">
+                        {isProcessing && (
+                          <span className="verificationSpinner" />
+                        )}
+
+                        <strong>{verificationMessage}</strong>
+                      </div>
+
+                      {verificationTx && (
+                        <div className="transactionBox">
+                          <span>TRANSACTION</span>
+                          <code>{verificationTx}</code>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}
@@ -761,7 +798,8 @@ function App() {
 
             <div className="verificationModalFooter">
               <span>
-                Intelligent verification powered by GenLayer validator consensus
+                Intelligent verification powered by GenLayer validator
+                consensus
               </span>
             </div>
           </div>

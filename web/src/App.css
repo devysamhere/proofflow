@@ -613,9 +613,7 @@ footer {
   color: #cbd1df;
 }
 
-/* ------------------------------
-   VERIFICATION MODAL
------------------------------- */
+/* VERIFICATION */
 
 .verificationOverlay {
   position: fixed;
@@ -623,17 +621,18 @@ footer {
   z-index: 1000;
   display: grid;
   place-items: center;
-  padding: 28px;
-  background: rgba(3, 5, 10, 0.78);
+  padding: 24px;
+  background: rgba(3, 5, 10, 0.8);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  overflow-y: auto;
 }
 
 .verificationModal {
-  width: min(720px, 100%);
-  max-height: calc(100vh - 56px);
-  overflow-y: auto;
+  width: min(760px, 100%);
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   border: 1px solid rgba(139, 92, 246, 0.32);
   border-radius: 24px;
   background:
@@ -644,40 +643,45 @@ footer {
     ),
     linear-gradient(
       180deg,
-      rgba(17, 20, 31, 0.99),
-      rgba(8, 10, 17, 0.995)
+      rgba(17, 20, 31, 0.995),
+      rgba(8, 10, 17, 0.998)
     );
   box-shadow:
-    0 40px 120px rgba(0, 0, 0, 0.65),
+    0 40px 120px rgba(0, 0, 0, 0.68),
     0 0 80px rgba(112, 83, 230, 0.08);
 }
 
+.verificationModal.resultMode {
+  width: min(820px, 100%);
+}
+
 .verificationModalTop {
+  flex: 0 0 auto;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
-  padding: 26px 28px 22px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  padding: 23px 28px 19px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.065);
 }
 
 .verificationEyebrow {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 900;
   letter-spacing: 0.15em;
   color: #9b89ff;
 }
 
 .verificationModalTop h3 {
-  margin: 8px 0 6px;
-  font-size: 23px;
+  margin: 7px 0 5px;
+  font-size: 22px;
   letter-spacing: -0.025em;
 }
 
 .verificationModalTop p {
   margin: 0;
   color: #747d91;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .closeVerification {
@@ -695,7 +699,6 @@ footer {
 
 .closeVerification:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.14);
 }
 
 .closeVerification:disabled {
@@ -704,34 +707,32 @@ footer {
 }
 
 .verificationCampaignSummary {
+  flex: 0 0 auto;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  padding: 18px 28px;
-  background: rgba(255, 255, 255, 0.018);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.verificationCampaignSummary div {
-  padding-right: 18px;
+  padding: 14px 28px;
+  background: rgba(255, 255, 255, 0.016);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.055);
 }
 
 .verificationCampaignSummary span {
   display: block;
   color: #5f687c;
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 800;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.11em;
 }
 
 .verificationCampaignSummary strong {
   display: block;
-  margin-top: 6px;
+  margin-top: 5px;
   color: #d7dce8;
   font-size: 11px;
 }
 
 .verificationProgress {
-  padding: 24px 28px 4px;
+  flex: 0 0 auto;
+  padding: 20px 28px 10px;
   display: grid;
   grid-template-columns:
     auto
@@ -748,12 +749,12 @@ footer {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
 }
 
 .progressStep span {
-  width: 28px;
-  height: 28px;
+  width: 29px;
+  height: 29px;
   display: grid;
   place-items: center;
   border-radius: 50%;
@@ -761,12 +762,12 @@ footer {
   background: #10131c;
   color: #646d83;
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 900;
 }
 
 .progressStep small {
   color: #596176;
-  font-size: 9px;
+  font-size: 8px;
 }
 
 .progressStep.active span {
@@ -791,32 +792,50 @@ footer {
 }
 
 .verificationBody {
-  padding: 24px 28px 28px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 28px 22px;
+  scrollbar-width: thin;
+  scrollbar-color: #3d4354 transparent;
+}
+
+.verificationBody::-webkit-scrollbar {
+  width: 6px;
+}
+
+.verificationBody::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.verificationBody::-webkit-scrollbar-thumb {
+  background: #353b4d;
+  border-radius: 999px;
 }
 
 .verificationCopy {
-  margin: 0 0 20px;
+  margin: 0 0 17px;
   color: #8e96aa;
-  line-height: 1.65;
-  font-size: 13px;
+  line-height: 1.6;
+  font-size: 12px;
 }
 
 .walletField {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 14px;
+  gap: 7px;
+  margin-bottom: 13px;
 }
 
 .walletField span {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   color: #cbd1df;
 }
 
 .walletField input {
   width: 100%;
-  padding: 14px 15px;
+  padding: 13px 14px;
   border-radius: 11px;
   border: 1px solid #2b3142;
   background: #0d1018;
@@ -824,7 +843,7 @@ footer {
   outline: none;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     "Liberation Mono", monospace;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .walletField input:focus {
@@ -832,18 +851,40 @@ footer {
   box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.08);
 }
 
-.walletField input:disabled {
-  opacity: 0.6;
+.completedWallet {
+  margin-bottom: 12px;
+  padding: 11px 13px;
+  border: 1px solid #242a38;
+  border-radius: 10px;
+  background: #0b0e15;
+}
+
+.completedWallet span {
+  display: block;
+  margin-bottom: 5px;
+  color: #596276;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.11em;
+}
+
+.completedWallet strong {
+  display: block;
+  color: #cbd1df;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    monospace;
+  font-size: 10px;
+  word-break: break-all;
 }
 
 .runVerificationButton {
   width: 100%;
-  padding: 14px 16px;
+  padding: 13px 16px;
   border: none;
   border-radius: 11px;
   cursor: pointer;
   font-weight: 800;
-  font-size: 13px;
+  font-size: 12px;
   color: #ffffff;
   background: linear-gradient(135deg, #775bf0, #6147d4);
   box-shadow: 0 12px 28px rgba(103, 76, 220, 0.2);
@@ -860,15 +901,17 @@ footer {
 }
 
 .verificationStatus {
-  margin-top: 18px;
-  padding: 17px;
+  margin-top: 15px;
+  padding: 15px;
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.022);
 }
 
 .verificationStatus.complete {
-  border-color: rgba(63, 215, 164, 0.14);
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 
 .verificationStatus.error {
@@ -883,7 +926,7 @@ footer {
 
 .statusHeading strong {
   color: #ffffff;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .verificationSpinner {
@@ -902,125 +945,202 @@ footer {
 }
 
 .transactionBox {
-  margin-top: 14px;
-  padding: 12px 13px;
+  margin-top: 13px;
+  padding: 11px 12px;
   border-radius: 10px;
   background: #090c12;
   border: 1px solid #202634;
 }
 
-.transactionBox span {
+.transactionBox span,
+.compactTransaction span {
   display: block;
-  margin-bottom: 7px;
+  margin-bottom: 6px;
   color: #596276;
   font-size: 8px;
   font-weight: 900;
   letter-spacing: 0.12em;
 }
 
-.transactionBox code {
+.transactionBox code,
+.compactTransaction code {
   color: #8f98ab;
-  font-size: 10px;
-  line-height: 1.5;
+  font-size: 9px;
+  line-height: 1.45;
   word-break: break-all;
 }
 
-.verificationResult {
-  margin-top: 18px;
-  padding-top: 18px;
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
-}
-
-.resultHeader {
-  display: flex;
+.resultSummary {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 18px;
+  gap: 14px;
+  padding: 15px;
+  border-radius: 14px;
 }
 
-.resultBadge,
-.outcomeBadge {
-  width: fit-content;
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-size: 9px;
+.resultSummary.pass {
+  border: 1px solid rgba(55, 220, 164, 0.22);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(55, 220, 164, 0.085),
+      rgba(55, 220, 164, 0.018)
+    );
+}
+
+.resultSummary.fail {
+  border: 1px solid rgba(239, 90, 90, 0.22);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(239, 90, 90, 0.08),
+      rgba(239, 90, 90, 0.015)
+    );
+}
+
+.resultSummaryIcon {
+  width: 39px;
+  height: 39px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 17px;
   font-weight: 900;
-  letter-spacing: 0.1em;
+  color: #ffffff;
 }
 
-.resultBadge.pass {
-  background: rgba(34, 197, 94, 0.12);
-  color: #4ade80;
-  border: 1px solid rgba(34, 197, 94, 0.25);
+.resultSummary.pass .resultSummaryIcon {
+  background: rgba(53, 214, 160, 0.16);
+  color: #53e3b2;
+  border: 1px solid rgba(53, 227, 178, 0.25);
 }
 
-.resultBadge.fail {
-  background: rgba(239, 68, 68, 0.12);
+.resultSummary.fail .resultSummaryIcon {
+  background: rgba(239, 90, 90, 0.14);
   color: #f87171;
-  border: 1px solid rgba(239, 68, 68, 0.24);
+  border: 1px solid rgba(239, 90, 90, 0.24);
 }
 
-.outcomeBadge.eligible {
-  background: rgba(56, 217, 182, 0.09);
-  color: #59e0bb;
-  border: 1px solid rgba(56, 217, 182, 0.18);
-}
-
-.outcomeBadge.notEligible {
-  background: rgba(239, 68, 68, 0.08);
-  color: #e88484;
-  border: 1px solid rgba(239, 68, 68, 0.16);
-}
-
-.resultSection {
-  margin-top: 15px;
-}
-
-.resultSection > span {
+.resultSummaryCopy span {
   display: block;
   color: #596276;
   font-size: 8px;
   font-weight: 900;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.11em;
+}
+
+.resultSummaryCopy strong {
+  display: block;
+  margin-top: 3px;
+  color: #f2f4fb;
+  font-size: 13px;
+}
+
+.resultSummaryCopy p {
+  margin: 3px 0 0;
+  color: #818a9e;
+  font-size: 10px;
+}
+
+.outcomeBadge {
+  width: fit-content;
+  padding: 6px 9px;
+  border-radius: 999px;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+  white-space: nowrap;
+}
+
+.outcomeBadge.eligible {
+  color: #58e3bd;
+  background: rgba(56, 217, 182, 0.09);
+  border: 1px solid rgba(56, 217, 182, 0.2);
+}
+
+.outcomeBadge.notEligible {
+  color: #ef9191;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.18);
+}
+
+.resultDetailsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.resultDetailCard {
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid #202633;
+  border-radius: 11px;
+  background: #0b0e15;
+}
+
+.resultDetailCard span {
+  display: block;
   margin-bottom: 7px;
+  color: #596276;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.11em;
 }
 
-.resultSection p {
+.resultDetailCard p {
   margin: 0;
-  color: #c8cedb;
-  line-height: 1.6;
-  font-size: 12px;
-}
-
-.evidenceText {
-  color: #8f98ab !important;
+  color: #abb3c3;
+  font-size: 10px;
+  line-height: 1.55;
   word-break: break-word;
 }
 
-.resultFooter {
-  margin-top: 18px;
-  padding-top: 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+.compactTransaction {
+  margin-top: 10px;
+  padding: 11px 13px;
+  border: 1px solid #202633;
+  border-radius: 10px;
+  background: #090c12;
+}
+
+.resultMeta {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  gap: 15px;
-  color: #60697c;
+  gap: 14px;
+  margin-top: 11px;
+  color: #646d80;
   font-size: 9px;
+}
+
+.storedBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.storedBadge i {
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #45d8ad;
+  box-shadow: 0 0 8px rgba(69, 216, 173, 0.6);
 }
 
 .verificationModalFooter {
-  padding: 15px 28px;
+  flex: 0 0 auto;
+  padding: 12px 28px;
   text-align: center;
   color: #535c70;
-  font-size: 9px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.055);
   background: rgba(0, 0, 0, 0.12);
 }
 
-/* ------------------------------
-   RESPONSIVE
------------------------------- */
+/* RESPONSIVE */
 
 @media (max-width: 850px) {
   nav {
@@ -1052,45 +1172,57 @@ footer {
   }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 650px) {
   .verificationOverlay {
     padding: 0;
     align-items: end;
   }
 
-  .verificationModal {
+  .verificationModal,
+  .verificationModal.resultMode {
     width: 100%;
-    max-height: 94vh;
+    max-height: 95vh;
     border-radius: 22px 22px 0 0;
     border-bottom: 0;
   }
 
   .verificationModalTop,
   .verificationBody {
-    padding-left: 20px;
-    padding-right: 20px;
+    padding-left: 19px;
+    padding-right: 19px;
   }
 
   .verificationCampaignSummary {
-    padding-left: 20px;
-    padding-right: 20px;
-    grid-template-columns: 1fr;
-    gap: 14px;
+    padding-left: 19px;
+    padding-right: 19px;
+    grid-template-columns: 1fr 1fr;
+    gap: 13px;
+  }
+
+  .verificationCampaignSummary div:last-child {
+    grid-column: 1 / -1;
   }
 
   .verificationProgress {
-    padding-left: 20px;
-    padding-right: 20px;
+    padding-left: 19px;
+    padding-right: 19px;
   }
 
   .progressStep small {
     display: none;
   }
 
-  .resultHeader,
-  .resultFooter {
-    align-items: flex-start;
-    flex-direction: column;
+  .resultSummary {
+    grid-template-columns: auto 1fr;
+  }
+
+  .resultSummary .outcomeBadge {
+    grid-column: 1 / -1;
+    margin-left: 53px;
+  }
+
+  .resultDetailsGrid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -1136,5 +1268,10 @@ footer {
   .walletButton {
     padding: 10px 12px;
     font-size: 12px;
+  }
+
+  .resultMeta {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
