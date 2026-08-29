@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import "./App.css";
 import {
   getCampaign,
@@ -250,7 +250,7 @@ function App() {
                 Explore Campaigns
               </a>
 
-              <button className="secondaryButton">Create Campaign</button>
+
             </div>
 
             <div className="networkInfo">
@@ -361,7 +361,7 @@ function App() {
               <h2>Complete actions. Prove the result.</h2>
             </div>
 
-            <button className="filterButton">All campaigns</button>
+
           </div>
 
           <div className="campaignGrid">
@@ -598,7 +598,7 @@ function App() {
                   currentStep >= 1 ? "progressStep active" : "progressStep"
                 }
               >
-                <span>{currentStep > 1 ? "✓" : "1"}</span>
+                <span>{currentStep > 1 ? "âœ“" : "1"}</span>
                 <small>Wallet</small>
               </div>
 
@@ -613,7 +613,7 @@ function App() {
                   currentStep >= 2 ? "progressStep active" : "progressStep"
                 }
               >
-                <span>{currentStep > 2 ? "✓" : "2"}</span>
+                <span>{currentStep > 2 ? "âœ“" : "2"}</span>
                 <small>Submit</small>
               </div>
 
@@ -628,7 +628,7 @@ function App() {
                   currentStep >= 3 ? "progressStep active" : "progressStep"
                 }
               >
-                <span>{currentStep > 3 ? "✓" : "3"}</span>
+                <span>{currentStep > 3 ? "âœ“" : "3"}</span>
                 <small>Consensus</small>
               </div>
 
@@ -643,7 +643,7 @@ function App() {
                   currentStep >= 4 ? "progressStep active" : "progressStep"
                 }
               >
-                <span>{currentStep >= 4 ? "✓" : "4"}</span>
+                <span>{currentStep >= 4 ? "âœ“" : "4"}</span>
                 <small>Result</small>
               </div>
             </div>
@@ -709,7 +709,7 @@ function App() {
                         }`}
                       >
                         <div className="resultSummaryIcon">
-                          {verificationResult.passed ? "✓" : "×"}
+                          {verificationResult.passed ? "âœ“" : "Ã—"}
                         </div>
 
                         <div className="resultSummaryCopy">
