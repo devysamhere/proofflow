@@ -613,7 +613,7 @@ footer {
   color: #cbd1df;
 }
 
-/* VERIFICATION */
+/* VERIFICATION MODAL */
 
 .verificationOverlay {
   position: fixed;
@@ -621,7 +621,7 @@ footer {
   z-index: 1000;
   display: grid;
   place-items: center;
-  padding: 24px;
+  padding: 22px;
   background: rgba(3, 5, 10, 0.8);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
@@ -629,7 +629,7 @@ footer {
 
 .verificationModal {
   width: min(760px, 100%);
-  max-height: calc(100vh - 48px);
+  max-height: calc(100vh - 44px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -661,7 +661,7 @@ footer {
   align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
-  padding: 23px 28px 19px;
+  padding: 21px 28px 17px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.065);
 }
 
@@ -710,7 +710,7 @@ footer {
   flex: 0 0 auto;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  padding: 14px 28px;
+  padding: 13px 28px;
   background: rgba(255, 255, 255, 0.016);
   border-bottom: 1px solid rgba(255, 255, 255, 0.055);
 }
@@ -732,7 +732,7 @@ footer {
 
 .verificationProgress {
   flex: 0 0 auto;
-  padding: 20px 28px 10px;
+  padding: 17px 28px 8px;
   display: grid;
   grid-template-columns:
     auto
@@ -743,13 +743,14 @@ footer {
     1fr
     auto;
   align-items: start;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 .progressStep {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
 }
 
 .progressStep span {
@@ -795,13 +796,13 @@ footer {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  padding: 18px 28px 22px;
+  padding: 16px 28px 19px;
   scrollbar-width: thin;
-  scrollbar-color: #3d4354 transparent;
+  scrollbar-color: #3b4152 transparent;
 }
 
 .verificationBody::-webkit-scrollbar {
-  width: 6px;
+  width: 5px;
 }
 
 .verificationBody::-webkit-scrollbar-track {
@@ -809,8 +810,12 @@ footer {
 }
 
 .verificationBody::-webkit-scrollbar-thumb {
-  background: #353b4d;
+  background: #343a4b;
   border-radius: 999px;
+}
+
+.verificationModal.resultMode .verificationBody {
+  padding-top: 13px;
 }
 
 .verificationCopy {
@@ -841,7 +846,8 @@ footer {
   background: #0d1018;
   color: #ffffff;
   outline: none;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     "Liberation Mono", monospace;
   font-size: 11px;
 }
@@ -852,8 +858,8 @@ footer {
 }
 
 .completedWallet {
-  margin-bottom: 12px;
-  padding: 11px 13px;
+  margin-bottom: 10px;
+  padding: 10px 12px;
   border: 1px solid #242a38;
   border-radius: 10px;
   background: #0b0e15;
@@ -861,7 +867,7 @@ footer {
 
 .completedWallet span {
   display: block;
-  margin-bottom: 5px;
+  margin-bottom: 4px;
   color: #596276;
   font-size: 8px;
   font-weight: 900;
@@ -871,8 +877,8 @@ footer {
 .completedWallet strong {
   display: block;
   color: #cbd1df;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    monospace;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 10px;
   word-break: break-all;
 }
@@ -900,6 +906,17 @@ footer {
   cursor: not-allowed;
 }
 
+/* Keeps Verify Again visible when result content scrolls */
+.verificationModal.resultMode .runVerificationButton {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  margin-bottom: 12px;
+  box-shadow:
+    0 10px 25px rgba(103, 76, 220, 0.22),
+    0 -12px 24px rgba(8, 10, 17, 0.92);
+}
+
 .verificationStatus {
   margin-top: 15px;
   padding: 15px;
@@ -909,6 +926,7 @@ footer {
 }
 
 .verificationStatus.complete {
+  margin-top: 0;
   padding: 0;
   border: 0;
   background: transparent;
@@ -974,38 +992,36 @@ footer {
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 14px;
-  padding: 15px;
-  border-radius: 14px;
+  gap: 13px;
+  padding: 13px 14px;
+  border-radius: 13px;
 }
 
 .resultSummary.pass {
   border: 1px solid rgba(55, 220, 164, 0.22);
-  background:
-    linear-gradient(
-      135deg,
-      rgba(55, 220, 164, 0.085),
-      rgba(55, 220, 164, 0.018)
-    );
+  background: linear-gradient(
+    135deg,
+    rgba(55, 220, 164, 0.085),
+    rgba(55, 220, 164, 0.018)
+  );
 }
 
 .resultSummary.fail {
   border: 1px solid rgba(239, 90, 90, 0.22);
-  background:
-    linear-gradient(
-      135deg,
-      rgba(239, 90, 90, 0.08),
-      rgba(239, 90, 90, 0.015)
-    );
+  background: linear-gradient(
+    135deg,
+    rgba(239, 90, 90, 0.08),
+    rgba(239, 90, 90, 0.015)
+  );
 }
 
 .resultSummaryIcon {
-  width: 39px;
-  height: 39px;
+  width: 37px;
+  height: 37px;
   display: grid;
   place-items: center;
   border-radius: 50%;
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 900;
   color: #ffffff;
 }
@@ -1068,13 +1084,13 @@ footer {
 .resultDetailsGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-top: 10px;
+  gap: 9px;
+  margin-top: 9px;
 }
 
 .resultDetailCard {
   min-width: 0;
-  padding: 13px;
+  padding: 12px;
   border: 1px solid #202633;
   border-radius: 11px;
   background: #0b0e15;
@@ -1082,7 +1098,7 @@ footer {
 
 .resultDetailCard span {
   display: block;
-  margin-bottom: 7px;
+  margin-bottom: 6px;
   color: #596276;
   font-size: 8px;
   font-weight: 900;
@@ -1092,14 +1108,14 @@ footer {
 .resultDetailCard p {
   margin: 0;
   color: #abb3c3;
-  font-size: 10px;
-  line-height: 1.55;
+  font-size: 9.5px;
+  line-height: 1.5;
   word-break: break-word;
 }
 
 .compactTransaction {
-  margin-top: 10px;
-  padding: 11px 13px;
+  margin-top: 9px;
+  padding: 10px 12px;
   border: 1px solid #202633;
   border-radius: 10px;
   background: #090c12;
@@ -1110,7 +1126,8 @@ footer {
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  margin-top: 11px;
+  margin-top: 9px;
+  padding-bottom: 2px;
   color: #646d80;
   font-size: 9px;
 }
@@ -1132,7 +1149,7 @@ footer {
 
 .verificationModalFooter {
   flex: 0 0 auto;
-  padding: 12px 28px;
+  padding: 11px 28px;
   text-align: center;
   color: #535c70;
   font-size: 8px;
@@ -1218,7 +1235,7 @@ footer {
 
   .resultSummary .outcomeBadge {
     grid-column: 1 / -1;
-    margin-left: 53px;
+    margin-left: 50px;
   }
 
   .resultDetailsGrid {
