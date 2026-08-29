@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import "./App.css";
 import { getCampaign, connectGenLayerWallet, verifyParticipant, getLatestParticipantResult, isOutcomeEligible } from "./genlayer";
 
-const CONTRACT_ADDRESS = "0x38b3d27976344Ab6293816D97f4Bc36DF3071c17";
+const CONTRACT_ADDRESS = "0xfC46FC2C0Cb8A93b8B653EDe3764ECe1e03D642D";
 
 function shortenAddress(address) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -171,7 +171,7 @@ function App() {
             <div className="networkInfo">
               <span className="statusDot"></span>
               GenLayer Studionet
-              <span className="divider">•</span>
+              <span className="divider">&bull;</span>
               Contract {shortenAddress(CONTRACT_ADDRESS)}
             </div>
           </div>
@@ -189,7 +189,7 @@ function App() {
                   <strong>Action detected</strong>
                   <p>Ethereum Sepolia</p>
                 </div>
-                <b>?</b>
+                <b>&#10003;</b>
               </div>
 
               <div className="flowLine"></div>
@@ -200,7 +200,7 @@ function App() {
                   <strong>Evidence retrieved</strong>
                   <p>Live blockchain data</p>
                 </div>
-                <b>?</b>
+                <b>&#10003;</b>
               </div>
 
               <div className="flowLine"></div>
@@ -211,7 +211,7 @@ function App() {
                   <strong>Consensus reached</strong>
                   <p>GenLayer validators</p>
                 </div>
-                <b>?</b>
+                <b>&#10003;</b>
               </div>
 
               <div className="flowLine"></div>
@@ -222,7 +222,7 @@ function App() {
                   <strong>Outcome unlocked</strong>
                   <p>Participant eligible</p>
                 </div>
-                <b>?</b>
+                <b>&#10003;</b>
               </div>
             </div>
           </div>
@@ -309,7 +309,7 @@ function App() {
                 onClick={() => setShowVerification(true)}
               >
                 View & Verify
-                <span>?</span>
+                <span>&rarr;</span>
               </button>
 
               {showVerification && (
@@ -326,7 +326,7 @@ function App() {
                       onClick={() => setShowVerification(false)}
                       type="button"
                     >
-                      ×
+                      &times;
                     </button>
                   </div>
 
@@ -527,5 +527,6 @@ function App() {
 }
 
 export default App;
+
 
 
