@@ -171,7 +171,7 @@ function App() {
             <div className="networkInfo">
               <span className="statusDot"></span>
               GenLayer Studionet
-              <span className="divider">•</span>
+              <span className="divider">â€¢</span>
               Contract {shortenAddress(CONTRACT_ADDRESS)}
             </div>
           </div>
@@ -326,7 +326,7 @@ function App() {
                       onClick={() => setShowVerification(false)}
                       type="button"
                     >
-                      ×
+                      Ã—
                     </button>
                   </div>
 
