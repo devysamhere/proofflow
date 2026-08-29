@@ -1,22 +1,33 @@
 import { useEffect, useState } from "react";
 import "./App.css";
-import { getCampaign, connectGenLayerWallet, verifyParticipant, getLatestParticipantResult, isOutcomeEligible } from "./genlayer";
+import {
+  getCampaign,
+  connectGenLayerWallet,
+  verifyParticipant,
+  getLatestParticipantResult,
+  isOutcomeEligible,
+} from "./genlayer";
 
 const CONTRACT_ADDRESS = "0xfC46FC2C0Cb8A93b8B653EDe3764ECe1e03D642D";
 
 function shortenAddress(address) {
+  if (!address) return "";
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
 function App() {
   const [wallet, setWallet] = useState("");
+
   const [campaign, setCampaign] = useState(null);
   const [campaignLoading, setCampaignLoading] = useState(true);
   const [campaignError, setCampaignError] = useState("");
+
   const [showVerification, setShowVerification] = useState(false);
+
   const [participantWallet, setParticipantWallet] = useState(
     "0xe6ad325573eb0b6f8edc7ee5c54d3d6179bbf687"
   );
+
   const [verificationStatus, setVerificationStatus] = useState("idle");
   const [verificationMessage, setVerificationMessage] = useState("");
   const [verificationResult, setVerificationResult] = useState(null);
@@ -42,6 +53,58 @@ function App() {
     loadCampaign();
   }, []);
 
+  useEffect(() => {
+    if (!showVerification) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setShowVerification(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [showVerification]);
+
+  const connectWallet = async () => {
+    if (!window.ethereum) {
+      alert(
+        "No compatible browser wallet was detected. Install MetaMask or another compatible wallet."
+      );
+      return;
+    }
+
+    try {
+      const { account } = await connectGenLayerWallet();
+      setWallet(account);
+    } catch (error) {
+      console.error("Wallet connection failed:", error);
+    }
+  };
+
+  const openVerification = () => {
+    setShowVerification(true);
+  };
+
+  const closeVerification = () => {
+    if (
+      verificationStatus === "connecting" ||
+      verificationStatus === "submitting" ||
+      verificationStatus === "waiting"
+    ) {
+      return;
+    }
+
+    setShowVerification(false);
+  };
+
   const handleVerify = async () => {
     try {
       setVerificationStatus("connecting");
@@ -50,33 +113,33 @@ function App() {
       setOutcomeEligible(null);
       setVerificationTx("");
 
-      const { client } = await connectGenLayerWallet();
+      const { account, client } = await connectGenLayerWallet();
+
+      if (account) {
+        setWallet(account);
+      }
 
       setVerificationStatus("submitting");
       setVerificationMessage("Submitting verification to GenLayer...");
 
       const tx = await verifyParticipant(client, participantWallet, 1);
 
-      if (typeof tx === "string") {
-        setVerificationTx(tx);
-      } else if (tx?.hash) {
-        setVerificationTx(tx.hash);
+      const txHash =
+        typeof tx === "string" ? tx : tx?.hash || tx?.transactionHash || "";
+
+      if (txHash) {
+        setVerificationTx(txHash);
       }
 
       setVerificationStatus("waiting");
       setVerificationMessage(
-        "Transaction submitted. Waiting for GenLayer consensus..."
+        "Transaction submitted. Waiting for GenLayer validator consensus..."
       );
 
-      if (client.waitForTransactionReceipt) {
-        const txHash =
-          typeof tx === "string" ? tx : tx?.hash || tx?.transactionHash;
-
-        if (txHash) {
-          await client.waitForTransactionReceipt({
-            hash: txHash,
-          });
-        }
+      if (client.waitForTransactionReceipt && txHash) {
+        await client.waitForTransactionReceipt({
+          hash: txHash,
+        });
       }
 
       const result = await getLatestParticipantResult(participantWallet, 1);
@@ -93,37 +156,51 @@ function App() {
       }
     } catch (error) {
       console.error("Verification failed:", error);
+
       setVerificationStatus("error");
-      setVerificationMessage(
-        error?.message || "Verification failed. Please try again."
-      );
-    }
-  };
 
-  const connectWallet = async () => {
-    if (!window.ethereum) {
-      alert("No compatible browser wallet was detected.");
-      return;
-    }
+      const message =
+        error?.message || "Verification failed. Please try again.";
 
-    try {
-      const accounts = await window.ethereum.request({
-        method: "eth_requestAccounts",
-      });
-
-      if (accounts?.length) {
-        setWallet(accounts[0]);
+      if (
+        message.toLowerCase().includes("evaluation unavailable") ||
+        message.toLowerCase().includes("please retry")
+      ) {
+        setVerificationMessage(
+          "GenLayer could not evaluate the evidence reliably. Please retry."
+        );
+      } else {
+        setVerificationMessage(message);
       }
-    } catch (error) {
-      console.error(error);
     }
   };
+
+  const isProcessing =
+    verificationStatus === "connecting" ||
+    verificationStatus === "submitting" ||
+    verificationStatus === "waiting";
+
+  const currentStep =
+    verificationStatus === "idle"
+      ? 0
+      : verificationStatus === "connecting"
+        ? 1
+        : verificationStatus === "submitting"
+          ? 2
+          : verificationStatus === "waiting"
+            ? 3
+            : verificationStatus === "complete"
+              ? 4
+              : verificationStatus === "error"
+                ? 3
+                : 0;
 
   return (
     <div className="app">
       <header className="navbar">
         <div className="brand">
           <div className="brandMark">P</div>
+
           <div>
             <strong>ProofFlow</strong>
             <span>Verify actions. Trigger outcomes.</span>
@@ -136,6 +213,7 @@ function App() {
         </nav>
 
         <button className="walletButton" onClick={connectWallet}>
+          <span className={wallet ? "walletDot connected" : "walletDot"} />
           {wallet ? shortenAddress(wallet) : "Connect Wallet"}
         </button>
       </header>
@@ -163,67 +241,88 @@ function App() {
               <a className="primaryButton" href="#campaigns">
                 Explore Campaigns
               </a>
+
               <button className="secondaryButton">
                 Create Campaign
               </button>
             </div>
 
             <div className="networkInfo">
-              <span className="statusDot"></span>
-              GenLayer Studionet
+              <span className="statusDot" />
+              <span>GenLayer Studionet</span>
+
               <span className="divider">&bull;</span>
-              Contract {shortenAddress(CONTRACT_ADDRESS)}
+
+              <span>
+                Contract {shortenAddress(CONTRACT_ADDRESS)}
+              </span>
             </div>
           </div>
 
           <div className="proofCard">
             <div className="proofHeader">
-              <span>LIVE VERIFICATION</span>
-              <span className="liveBadge">PASS</span>
+              <span>LIVE VERIFICATION FLOW</span>
+              <span className="liveBadge">
+                <span className="livePulse" />
+                LIVE
+              </span>
             </div>
 
             <div className="proofFlow">
               <div className="proofStep complete">
                 <span>01</span>
+
                 <div>
                   <strong>Action detected</strong>
                   <p>Ethereum Sepolia</p>
                 </div>
+
                 <b>&#10003;</b>
               </div>
 
-              <div className="flowLine"></div>
+              <div className="flowLine" />
 
               <div className="proofStep complete">
                 <span>02</span>
+
                 <div>
                   <strong>Evidence retrieved</strong>
                   <p>Live blockchain data</p>
                 </div>
+
                 <b>&#10003;</b>
               </div>
 
-              <div className="flowLine"></div>
+              <div className="flowLine" />
 
               <div className="proofStep complete">
                 <span>03</span>
+
                 <div>
                   <strong>Consensus reached</strong>
                   <p>GenLayer validators</p>
                 </div>
+
                 <b>&#10003;</b>
               </div>
 
-              <div className="flowLine"></div>
+              <div className="flowLine" />
 
               <div className="proofStep complete">
                 <span>04</span>
+
                 <div>
                   <strong>Outcome unlocked</strong>
                   <p>Participant eligible</p>
                 </div>
+
                 <b>&#10003;</b>
               </div>
+            </div>
+
+            <div className="proofFooter">
+              <span>Example verified flow</span>
+              <strong>PASS</strong>
             </div>
           </div>
         </section>
@@ -233,14 +332,17 @@ function App() {
             <strong>Live</strong>
             <span>Evidence</span>
           </div>
+
           <div>
             <strong>AI</strong>
             <span>Evaluation</span>
           </div>
+
           <div>
             <strong>Consensus</strong>
             <span>Verification</span>
           </div>
+
           <div>
             <strong>Onchain</strong>
             <span>Results</span>
@@ -254,15 +356,18 @@ function App() {
               <h2>Complete actions. Prove the result.</h2>
             </div>
 
-            <button className="filterButton">All campaigns</button>
+            <button className="filterButton">
+              All campaigns
+            </button>
           </div>
 
           <div className="campaignGrid">
-            <article className="campaignCard">
+            <article className="campaignCard featuredCampaign">
               <div className="cardTop">
                 <span className="category">
                   {campaign?.category || "ONCHAIN"}
                 </span>
+
                 <span className="activeBadge">
                   {campaignLoading
                     ? "LOADING"
@@ -286,6 +391,7 @@ function App() {
 
               <div className="requirement">
                 <span>REQUIREMENT</span>
+
                 <strong>
                   {campaign?.requirement || "Loading requirement..."}
                 </strong>
@@ -293,11 +399,12 @@ function App() {
 
               <div className="campaignMeta">
                 <div>
-                  <span>Network</span>
-                  <strong>Sepolia</strong>
+                  <span>NETWORK</span>
+                  <strong>Ethereum Sepolia</strong>
                 </div>
+
                 <div>
-                  <span>Outcome</span>
+                  <span>OUTCOME</span>
                   <strong>
                     {campaign?.outcome_value || "Loading..."}
                   </strong>
@@ -306,120 +413,23 @@ function App() {
 
               <button
                 className="verifyButton"
-                onClick={() => setShowVerification(true)}
+                onClick={openVerification}
+                disabled={campaignLoading || Boolean(campaignError)}
               >
-                View & Verify
-                <span>&rarr;</span>
+                <span>View & Verify</span>
+                <span className="buttonArrow">&rarr;</span>
               </button>
-
-              {showVerification && (
-                <div className="verificationPanel">
-                  <div className="verificationHeader">
-                    <div>
-                      <span className="verificationEyebrow">
-                        LIVE GENLAYER VERIFICATION
-                      </span>
-                      <h4>Verify campaign completion</h4>
-                    </div>
-                    <button
-                      className="closeVerification"
-                      onClick={() => setShowVerification(false)}
-                      type="button"
-                    >
-                      &times;
-                    </button>
-                  </div>
-
-                  <p className="verificationCopy">
-                    Enter the participant wallet that completed the Sepolia
-                    action. ProofFlow will submit the verification to GenLayer
-                    and wait for validator consensus.
-                  </p>
-
-                  <label className="walletField">
-                    <span>Participant wallet</span>
-                    <input
-                      value={participantWallet}
-                      onChange={(event) =>
-                        setParticipantWallet(event.target.value)
-                      }
-                      placeholder="0x..."
-                    />
-                  </label>
-
-                  <button
-                    className="runVerificationButton"
-                    onClick={handleVerify}
-                    disabled={
-                      verificationStatus === "connecting" ||
-                      verificationStatus === "submitting" ||
-                      verificationStatus === "waiting"
-                    }
-                  >
-                    {verificationStatus === "connecting"
-                      ? "Connecting..."
-                      : verificationStatus === "submitting"
-                        ? "Submitting..."
-                        : verificationStatus === "waiting"
-                          ? "Waiting for Consensus..."
-                          : "Verify with GenLayer"}
-                  </button>
-
-                  {verificationStatus !== "idle" && (
-                    <div
-                      className={`verificationStatus ${verificationStatus}`}
-                    >
-                      <strong>{verificationMessage}</strong>
-
-                      {verificationTx && (
-                        <span className="verificationTx">
-                          Transaction: {verificationTx}
-                        </span>
-                      )}
-
-                      {verificationResult?.found && (
-                        <div className="verificationResult">
-                          <span
-                            className={
-                              verificationResult.passed
-                                ? "resultBadge pass"
-                                : "resultBadge fail"
-                            }
-                          >
-                            {verificationResult.passed ? "PASS" : "FAIL"}
-                          </span>
-
-                          <p>{verificationResult.reasoning}</p>
-
-                          {verificationResult.evidence_ref && (
-                            <small>
-                              Evidence: {verificationResult.evidence_ref}
-                            </small>
-                          )}
-
-                          <small>
-                            Verification ID:{" "}
-                            {verificationResult.verification_id}
-                          </small>
-
-                          <strong className="eligibilityResult">
-                            Outcome:{" "}
-                            {outcomeEligible
-                              ? "ELIGIBLE"
-                              : "NOT ELIGIBLE"}
-                          </strong>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
             </article>
 
             <article className="campaignCard coming">
               <div className="cardTop">
-                <span className="category developer">DEVELOPER</span>
-                <span className="soonBadge">COMING NEXT</span>
+                <span className="category developer">
+                  DEVELOPER
+                </span>
+
+                <span className="soonBadge">
+                  COMING NEXT
+                </span>
               </div>
 
               <h3>Developer Contribution Quest</h3>
@@ -429,10 +439,10 @@ function App() {
                 repository evidence and GenLayer consensus.
               </p>
 
-              <div className="placeholderLines">
-                <span></span>
-                <span></span>
-                <span></span>
+              <div className="comingFeature">
+                <span>Repository evidence</span>
+                <span>Contribution rules</span>
+                <span>Consensus verification</span>
               </div>
 
               <button className="disabledButton" disabled>
@@ -442,8 +452,13 @@ function App() {
 
             <article className="campaignCard coming">
               <div className="cardTop">
-                <span className="category realworld">REAL WORLD</span>
-                <span className="soonBadge">COMING NEXT</span>
+                <span className="category realworld">
+                  REAL WORLD
+                </span>
+
+                <span className="soonBadge">
+                  COMING NEXT
+                </span>
               </div>
 
               <h3>Real-World Proof Campaign</h3>
@@ -453,10 +468,10 @@ function App() {
                 grants, loyalty programs and other real-world outcomes.
               </p>
 
-              <div className="placeholderLines">
-                <span></span>
-                <span></span>
-                <span></span>
+              <div className="comingFeature">
+                <span>Authoritative evidence</span>
+                <span>AI evaluation</span>
+                <span>Trusted outcomes</span>
               </div>
 
               <button className="disabledButton" disabled>
@@ -469,15 +484,22 @@ function App() {
         <section className="howSection" id="how">
           <div className="sectionHeading">
             <div>
-              <span className="eyebrow">THE PROOF LAYER</span>
-              <h2>From action to trusted outcome.</h2>
+              <span className="eyebrow">
+                THE PROOF LAYER
+              </span>
+
+              <h2>
+                From action to trusted outcome.
+              </h2>
             </div>
           </div>
 
           <div className="howGrid">
             <div>
               <span>01</span>
+
               <h3>Define</h3>
+
               <p>
                 A campaign creator defines the action, evidence source and
                 outcome.
@@ -486,7 +508,9 @@ function App() {
 
             <div>
               <span>02</span>
+
               <h3>Complete</h3>
+
               <p>
                 A participant performs the required onchain or real-world
                 action.
@@ -495,7 +519,9 @@ function App() {
 
             <div>
               <span>03</span>
+
               <h3>Verify</h3>
+
               <p>
                 GenLayer validators independently evaluate authoritative
                 evidence.
@@ -504,7 +530,9 @@ function App() {
 
             <div>
               <span>04</span>
+
               <h3>Unlock</h3>
+
               <p>
                 Consensus creates a trusted PASS or FAIL that controls the
                 outcome.
@@ -522,11 +550,225 @@ function App() {
 
         <span>Powered by GenLayer</span>
       </footer>
+
+      {showVerification && (
+        <div
+          className="verificationOverlay"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              closeVerification();
+            }
+          }}
+        >
+          <div
+            className="verificationModal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="verification-title"
+          >
+            <div className="verificationModalTop">
+              <div>
+                <span className="verificationEyebrow">
+                  GENLAYER VERIFICATION
+                </span>
+
+                <h3 id="verification-title">
+                  Verify campaign completion
+                </h3>
+
+                <p>
+                  {campaign?.title || "Sepolia ERC20 Transfer Quest"}
+                </p>
+              </div>
+
+              <button
+                className="closeVerification"
+                onClick={closeVerification}
+                disabled={isProcessing}
+                aria-label="Close verification"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="verificationCampaignSummary">
+              <div>
+                <span>NETWORK</span>
+                <strong>Ethereum Sepolia</strong>
+              </div>
+
+              <div>
+                <span>VERIFICATION</span>
+                <strong>GenLayer Consensus</strong>
+              </div>
+
+              <div>
+                <span>OUTCOME</span>
+                <strong>
+                  {campaign?.outcome_value || "DEMO_REWARD"}
+                </strong>
+              </div>
+            </div>
+
+            <div className="verificationProgress">
+              <div className={currentStep >= 1 ? "progressStep active" : "progressStep"}>
+                <span>1</span>
+                <small>Wallet</small>
+              </div>
+
+              <div className={currentStep >= 2 ? "progressLine active" : "progressLine"} />
+
+              <div className={currentStep >= 2 ? "progressStep active" : "progressStep"}>
+                <span>2</span>
+                <small>Submit</small>
+              </div>
+
+              <div className={currentStep >= 3 ? "progressLine active" : "progressLine"} />
+
+              <div className={currentStep >= 3 ? "progressStep active" : "progressStep"}>
+                <span>3</span>
+                <small>Consensus</small>
+              </div>
+
+              <div className={currentStep >= 4 ? "progressLine active" : "progressLine"} />
+
+              <div className={currentStep >= 4 ? "progressStep active" : "progressStep"}>
+                <span>4</span>
+                <small>Result</small>
+              </div>
+            </div>
+
+            <div className="verificationBody">
+              <p className="verificationCopy">
+                Enter the wallet that completed the required Sepolia action.
+                ProofFlow will retrieve live evidence and submit the verification
+                to GenLayer validators for consensus.
+              </p>
+
+              <label className="walletField">
+                <span>Participant wallet</span>
+
+                <input
+                  value={participantWallet}
+                  onChange={(event) =>
+                    setParticipantWallet(event.target.value)
+                  }
+                  placeholder="0x..."
+                  disabled={isProcessing}
+                />
+              </label>
+
+              <button
+                className="runVerificationButton"
+                onClick={handleVerify}
+                disabled={isProcessing || !participantWallet.trim()}
+              >
+                {verificationStatus === "connecting"
+                  ? "Connecting Wallet..."
+                  : verificationStatus === "submitting"
+                    ? "Submitting Verification..."
+                    : verificationStatus === "waiting"
+                      ? "Waiting for Consensus..."
+                      : verificationStatus === "complete"
+                        ? "Verify Again"
+                        : verificationStatus === "error"
+                          ? "Retry Verification"
+                          : "Verify with GenLayer"}
+              </button>
+
+              {verificationStatus !== "idle" && (
+                <div
+                  className={`verificationStatus ${verificationStatus}`}
+                >
+                  <div className="statusHeading">
+                    {isProcessing && (
+                      <span className="verificationSpinner" />
+                    )}
+
+                    <strong>
+                      {verificationMessage}
+                    </strong>
+                  </div>
+
+                  {verificationTx && (
+                    <div className="transactionBox">
+                      <span>TRANSACTION</span>
+                      <code>{verificationTx}</code>
+                    </div>
+                  )}
+
+                  {verificationResult?.found && (
+                    <div className="verificationResult">
+                      <div className="resultHeader">
+                        <span
+                          className={
+                            verificationResult.passed
+                              ? "resultBadge pass"
+                              : "resultBadge fail"
+                          }
+                        >
+                          {verificationResult.passed
+                            ? "PASS"
+                            : "FAIL"}
+                        </span>
+
+                        <span
+                          className={
+                            outcomeEligible
+                              ? "outcomeBadge eligible"
+                              : "outcomeBadge notEligible"
+                          }
+                        >
+                          {outcomeEligible
+                            ? "OUTCOME ELIGIBLE"
+                            : "NOT ELIGIBLE"}
+                        </span>
+                      </div>
+
+                      <div className="resultSection">
+                        <span>CONSENSUS REASONING</span>
+
+                        <p>
+                          {verificationResult.reasoning}
+                        </p>
+                      </div>
+
+                      {verificationResult.evidence_ref && (
+                        <div className="resultSection">
+                          <span>EVIDENCE</span>
+
+                          <p className="evidenceText">
+                            {verificationResult.evidence_ref}
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="resultFooter">
+                        <span>
+                          Verification #
+                          {verificationResult.verification_id}
+                        </span>
+
+                        <span>
+                          Stored on GenLayer
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="verificationModalFooter">
+              <span>
+                Intelligent verification powered by GenLayer validator consensus
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 export default App;
-
-
-
