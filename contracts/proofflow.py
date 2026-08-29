@@ -329,6 +329,38 @@ class ProofFlow(gl.Contract):
             )
 
         # ==================================================
+        # DETACH STORAGE VALUES BEFORE NONDET
+        # ==================================================
+
+        campaign_title = str(
+            campaign.title
+        )
+
+        campaign_description = str(
+            campaign.description
+        )
+
+        campaign_category = str(
+            campaign.category
+        )
+
+        campaign_requirement = str(
+            campaign.requirement
+        )
+
+        campaign_evidence_url = str(
+            campaign.evidence_url
+        )
+
+        participant_for_eval = str(
+            participant_text
+        )
+
+        verification_time_text = str(
+            verified_at_hint
+        )
+
+        # ==================================================
         # NON-DETERMINISTIC EVALUATION
         # ==================================================
 
@@ -337,7 +369,7 @@ class ProofFlow(gl.Contract):
             try:
 
                 webpage = gl.get_webpage(
-                    campaign.evidence_url
+                    campaign_evidence_url
                 )
 
                 evidence = str(webpage)
@@ -353,22 +385,22 @@ Evaluate ONLY the supplied campaign requirement
 and evidence.
 
 CAMPAIGN TITLE:
-""" + campaign.title + """
+""" + campaign_title + """
 
 CAMPAIGN DESCRIPTION:
-""" + campaign.description + """
+""" + campaign_description + """
 
 CATEGORY:
-""" + campaign.category + """
+""" + campaign_category + """
 
 REQUIREMENT:
-""" + campaign.requirement + """
+""" + campaign_requirement + """
 
 PARTICIPANT:
-""" + participant_text + """
+""" + participant_for_eval + """
 
 VERIFICATION TIME HINT:
-""" + str(verified_at_hint) + """
+""" + verification_time_text + """
 
 EVIDENCE:
 """ + evidence + """
@@ -430,7 +462,7 @@ Return ONLY valid JSON with exactly these keys:
                 evidence_ref = str(
                     parsed.get(
                         "evidence_ref",
-                        campaign.evidence_url
+                        campaign_evidence_url
                     )
                 )
 
@@ -447,7 +479,7 @@ Return ONLY valid JSON with exactly these keys:
                     "reasoning":
                         "Evidence could not be reliably evaluated.",
                     "evidence_ref":
-                        campaign.evidence_url
+                        campaign_evidence_url
                 }
 
         # ==================================================
@@ -494,8 +526,6 @@ Return ONLY valid JSON with exactly these keys:
                     )
                 )
 
-                # Consensus is based on the
-                # trust-critical PASS / FAIL decision.
                 return (
                     leader_passed
                     == validator_passed
@@ -543,7 +573,7 @@ Return ONLY valid JSON with exactly these keys:
         evidence_ref = str(
             result.get(
                 "evidence_ref",
-                campaign.evidence_url
+                campaign_evidence_url
             )
         )
 
