@@ -441,15 +441,82 @@ Return ONLY valid JSON with exactly these keys:
                     prompt
                 )
 
-                parsed = json.loads(
+                cleaned_result = str(
                     raw_result
+                ).strip()
+
+                if cleaned_result.startswith(
+                    "```"
+                ):
+                    first_newline = cleaned_result.find(
+                        "\n"
+                    )
+
+                    if first_newline != -1:
+                        cleaned_result = cleaned_result[
+                            first_newline + 1:
+                        ]
+
+                    if cleaned_result.endswith(
+                        "```"
+                    ):
+                        cleaned_result = cleaned_result[
+                            :-3
+                        ].strip()
+
+                json_start = cleaned_result.find(
+                    "{"
                 )
 
-                passed = bool(
-                    parsed.get(
-                        "passed",
-                        False
+                json_end = cleaned_result.rfind(
+                    "}"
+                )
+
+                if (
+                    json_start == -1
+                    or json_end == -1
+                    or json_end < json_start
+                ):
+                    raise gl.vm.UserError(
+                        "Model response did not contain valid JSON."
                     )
+
+                cleaned_result = cleaned_result[
+                    json_start:
+                    json_end + 1
+                ]
+
+                parsed = json.loads(
+                    cleaned_result
+                )
+
+                if not isinstance(
+                    parsed,
+                    dict
+                ):
+                    raise gl.vm.UserError(
+                        "Model response JSON must be an object."
+                    )
+
+                if "passed" not in parsed:
+                    raise gl.vm.UserError(
+                        "Model response is missing passed."
+                    )
+
+                passed_value = parsed.get(
+                    "passed"
+                )
+
+                if not isinstance(
+                    passed_value,
+                    bool
+                ):
+                    raise gl.vm.UserError(
+                        "Model response passed must be boolean."
+                    )
+
+                passed = bool(
+                    passed_value
                 )
 
                 reasoning = str(
@@ -467,6 +534,8 @@ Return ONLY valid JSON with exactly these keys:
                 )
 
                 return {
+                    "status":
+                        "PASS" if passed else "FAIL",
                     "passed": passed,
                     "reasoning": reasoning,
                     "evidence_ref": evidence_ref
@@ -475,9 +544,10 @@ Return ONLY valid JSON with exactly these keys:
             except Exception:
 
                 return {
+                    "status": "ERROR",
                     "passed": False,
                     "reasoning":
-                        "Evidence could not be reliably evaluated.",
+                        "EVALUATION_ERROR: Evidence could not be reliably evaluated. Please retry.",
                     "evidence_ref":
                         campaign_evidence_url
                 }
@@ -512,23 +582,29 @@ Return ONLY valid JSON with exactly these keys:
                 ):
                     return False
 
-                leader_passed = bool(
+                leader_status = str(
                     leader.get(
-                        "passed",
-                        False
+                        "status",
+                        "ERROR"
                     )
                 )
 
-                validator_passed = bool(
+                validator_status = str(
                     validator_result.get(
-                        "passed",
-                        False
+                        "status",
+                        "ERROR"
                     )
                 )
+
+                if (
+                    leader_status == "ERROR"
+                    or validator_status == "ERROR"
+                ):
+                    return False
 
                 return (
-                    leader_passed
-                    == validator_passed
+                    leader_status
+                    == validator_status
                 )
 
             except Exception:
@@ -550,6 +626,30 @@ Return ONLY valid JSON with exactly these keys:
         ):
             raise gl.vm.UserError(
                 "consensus verification returned invalid result"
+            )
+
+        # ==================================================
+        # REJECT EVALUATION ERRORS BEFORE STORAGE
+        # ==================================================
+
+        result_status = str(
+            result.get(
+                "status",
+                "ERROR"
+            )
+        )
+
+        if result_status == "ERROR":
+            raise gl.vm.UserError(
+                "verification evaluation unavailable; please retry"
+            )
+
+        if (
+            result_status != "PASS"
+            and result_status != "FAIL"
+        ):
+            raise gl.vm.UserError(
+                "consensus verification returned invalid status"
             )
 
         # ==================================================
