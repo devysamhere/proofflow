@@ -1,12 +1,12 @@
-\# ProofFlow
+﻿# ProofFlow
 
 
 
-\*\*Verify actions. Trigger outcomes.\*\*
+**Verify actions. Trigger outcomes.**
 
 
 
-ProofFlow is a programmable proof-of-action platform powered by \*\*GenLayer\*\*. Organizations define verifiable actions, users complete them, and GenLayer evaluates live or authoritative evidence through validator consensus before determining whether an outcome should be unlocked.
+ProofFlow is a programmable proof-of-action platform powered by **GenLayer**. Organizations define verifiable actions, users complete them, and GenLayer evaluates live or authoritative evidence through validator consensus before determining whether an outcome should be unlocked.
 
 
 
@@ -14,11 +14,11 @@ ProofFlow is designed for rewards, quests, credentials, grants, loyalty programs
 
 
 
-\## Live Demo
+## Live Demo
 
 
 
-\*\*ProofFlow App:\*\*  
+**ProofFlow App:**
 
 https://proofflow-8nc.pages.dev
 
@@ -28,7 +28,7 @@ The live demo verifies a real ERC20 transfer performed on Ethereum Sepolia using
 
 
 
-\## Source Code
+## Source Code
 
 
 
@@ -36,37 +36,37 @@ https://github.com/devysamhere/proofflow
 
 
 
-\## GenLayer Deployment
+## GenLayer Deployment
 
 
 
-\*\*Network:\*\* GenLayer Studionet
+**Network:** GenLayer Studionet
 
 
 
-\*\*ProofFlow Intelligent Contract:\*\*  
+**ProofFlow Intelligent Contract:**
 
 `0xfC46FC2C0Cb8A93b8B653EDe3764ECe1e03D642D`
 
 
 
-\*\*Deployment Transaction:\*\*  
+**Deployment Transaction:**
 
 `0x6f3e76aaf92eb52d34634efbb3ecb040b8f43ce2160046968ad78735b7b2bb2f`
 
 
 
-\*\*Explorer:\*\*  
+**Explorer:**
 
 https://explorer-studio.genlayer.com/address/0xfC46FC2C0Cb8A93b8B653EDe3764ECe1e03D642D
 
 
 
-\---
+---
 
 
 
-\## What Problem Does ProofFlow Solve?
+## What Problem Does ProofFlow Solve?
 
 
 
@@ -78,23 +78,23 @@ Traditional implementations usually rely on:
 
 
 
-\- A centralized backend
+- A centralized backend
 
-\- A manually operated review system
+- A manually operated review system
 
-\- A single API
+- A single API
 
-\- Hard-coded blockchain logic
+- Hard-coded blockchain logic
 
-\- One party deciding whether evidence is valid
-
-
-
-ProofFlow moves the final verification decision into a \*\*GenLayer Intelligent Contract\*\*.
+- One party deciding whether evidence is valid
 
 
 
-External systems provide evidence, but they do \*\*not\*\* decide whether the requirement has been satisfied.
+ProofFlow moves the final verification decision into a **GenLayer Intelligent Contract**.
+
+
+
+External systems provide evidence, but they do **not** decide whether the requirement has been satisfied.
 
 
 
@@ -102,11 +102,11 @@ GenLayer validators independently evaluate the evidence against the campaign req
 
 
 
-\---
+---
 
 
 
-\## How It Works
+## How It Works
 
 
 
@@ -166,11 +166,97 @@ Reward / Credential / Payment / Access
 
 
 
-\---
+---
 
 
 
-\## Current End-to-End Demo
+## Create and Verify Your Own Campaign
+
+ProofFlow is not limited to a preconfigured demo campaign. Users and reviewers can create a new ONCHAIN verification campaign directly from the production frontend.
+
+The Campaign Creator allows the user to define:
+
+- Campaign title
+- Description
+- Verification requirement
+- Ethereum Sepolia evidence transaction
+- Outcome
+
+For the current ONCHAIN MVP, the user only provides the Sepolia transaction hash. ProofFlow automatically constructs the public evidence URL using the ProofFlow evidence worker, so campaign creators do not need to manually build or supply a raw evidence endpoint.
+
+The campaign is submitted through the connected browser wallet and stored by the deployed ProofFlow Intelligent Contract on GenLayer.
+
+Once finalized, the frontend dynamically discovers the newly created campaign and makes it available through **View & Verify**.
+
+The complete user-created flow is:
+
+```text
+Create Campaign
+      |
+      v
+Store Campaign on GenLayer
+      |
+      v
+Discover Campaign in Frontend
+      |
+      v
+Submit Participant
+      |
+      v
+Retrieve Live Blockchain Evidence
+      |
+      v
+GenLayer Validator Evaluation
+      |
+      v
+Consensus
+      |
+      v
+PASS / FAIL
+      |
+      v
+Outcome Eligibility
+```
+
+### Production Campaign Creator Test
+
+The complete flow was tested from the public ProofFlow frontend by creating a second campaign through the UI.
+
+**Campaign ID:** `2`
+
+**Campaign:** ProofFlow ERC20 Transfer Challenge
+
+**Category:** `ONCHAIN`
+
+**Requirement:**
+
+Participant must have successfully transferred at least 0.1 Rel ERC20 tokens on Sepolia, and the transfer must originate from the participant wallet.
+
+**Outcome:** `PROOFFLOW_VERIFIED`
+
+**Campaign Creation Transaction:**
+
+`0x50a3e720a4200487782ded656ee2401229734faa5ff925d9cf8288347fa4446e`
+
+**Evidence Transaction:**
+
+`0x07ea8a8ac3eebdfd3382c49998ccb9dcdce7c6add97f9dfc5c0690dbe6bfe9ef`
+
+**Participant:**
+
+`0xe6ad325573eb0b6f8edc7ee5c54d3d6179bbf687`
+
+GenLayer evaluated the live Sepolia evidence and stored **Verification ID 6** with:
+
+- `passed: true`
+- Observed transfer: `0.122226 Rel`
+- Required minimum: `0.1 Rel`
+- Outcome eligible: `true`
+
+This demonstrates that ProofFlow supports a complete user-generated lifecycle rather than only a hard-coded demonstration campaign.
+
+---
+## Current End-to-End Demo
 
 
 
@@ -178,11 +264,11 @@ The production demo verifies a real action on Ethereum Sepolia.
 
 
 
-\### Campaign
+### Campaign
 
 
 
-\*\*Sepolia ERC20 Transfer Quest\*\*
+**Sepolia ERC20 Transfer Quest**
 
 
 
@@ -194,7 +280,7 @@ Requirement:
 
 
 
-\### Participant
+### Participant
 
 
 
@@ -202,7 +288,7 @@ Requirement:
 
 
 
-\### Sepolia Transaction
+### Sepolia Transaction
 
 
 
@@ -214,15 +300,15 @@ The transaction contains a successful ERC20 transfer of:
 
 
 
-\*\*0.122226 Rel\*\*
+**0.122226 Rel**
 
 
 
-\---
+---
 
 
 
-\## Live Evidence API
+## Live Evidence API
 
 
 
@@ -230,13 +316,13 @@ ProofFlow includes a public evidence service deployed with Cloudflare Workers.
 
 
 
-\*\*Worker:\*\*  
+**Worker:**
 
 https://proofflow-evidence.floptools.workers.dev
 
 
 
-\*\*Demo Evidence Endpoint:\*\*
+**Demo Evidence Endpoint:**
 
 
 
@@ -252,31 +338,31 @@ The evidence service retrieves and normalizes blockchain facts including:
 
 
 
-\- Transaction status
+- Transaction status
 
-\- Network
+- Network
 
-\- Block
+- Block
 
-\- Timestamp
+- Timestamp
 
-\- Sender
+- Sender
 
-\- Recipient
+- Recipient
 
-\- Contract
+- Contract
 
-\- ERC20 Transfer event
+- ERC20 Transfer event
 
-\- Token symbol
+- Token symbol
 
-\- Decimals
+- Decimals
 
-\- Transferred amount
+- Transferred amount
 
 
 
-The evidence service intentionally does \*\*not\*\* decide PASS or FAIL.
+The evidence service intentionally does **not** decide PASS or FAIL.
 
 
 
@@ -284,21 +370,21 @@ That decision belongs to GenLayer.
 
 
 
-\---
+---
 
 
 
-\## GenLayer Verification Flow
+## GenLayer Verification Flow
 
 
 
-When a participant selects \*\*Verify with GenLayer\*\*:
+When a participant selects **Verify with GenLayer**:
 
 
 
 1\. The browser connects through the user's wallet.
 
-2\. The frontend submits `verify\_participant` to the ProofFlow Intelligent Contract.
+2\. The frontend submits `verify_participant` to the ProofFlow Intelligent Contract.
 
 3\. The contract retrieves live evidence.
 
@@ -318,11 +404,11 @@ The production flow has been tested successfully from the public web application
 
 
 
-\---
+---
 
 
 
-\## Example Result
+## Example Result
 
 
 
@@ -330,17 +416,17 @@ For the current Sepolia ERC20 campaign, GenLayer verified that:
 
 
 
-\- The transaction succeeded
+- The transaction succeeded
 
-\- The transfer originated from the required participant wallet
+- The transfer originated from the required participant wallet
 
-\- An ERC20 Transfer event was present
+- An ERC20 Transfer event was present
 
-\- The token was Rel
+- The token was Rel
 
-\- `0.122226 Rel` was transferred
+- `0.122226 Rel` was transferred
 
-\- The required minimum was `0.1 Rel`
+- The required minimum was `0.1 Rel`
 
 
 
@@ -358,19 +444,19 @@ Outcome: ELIGIBLE
 
 
 
-\---
+---
 
 
 
-\## Trust Model
+## Trust Model
 
 
 
-ProofFlow separates \*\*evidence collection\*\* from \*\*evidence judgment\*\*.
+ProofFlow separates **evidence collection** from **evidence judgment**.
 
 
 
-\### Evidence Adapters
+### Evidence Adapters
 
 
 
@@ -382,7 +468,7 @@ They do not determine whether a campaign has passed.
 
 
 
-\### Intelligent Contract
+### Intelligent Contract
 
 
 
@@ -390,23 +476,23 @@ The ProofFlow contract:
 
 
 
-\- Stores campaign requirements
+- Stores campaign requirements
 
-\- Retrieves evidence
+- Retrieves evidence
 
-\- Instructs validators how the evidence must be evaluated
+- Instructs validators how the evidence must be evaluated
 
-\- Runs nondeterministic evaluation
+- Runs nondeterministic evaluation
 
-\- Reaches validator consensus
+- Reaches validator consensus
 
-\- Stores finalized verification results
+- Stores finalized verification results
 
-\- Exposes outcome eligibility
+- Exposes outcome eligibility
 
 
 
-\### Validators
+### Validators
 
 
 
@@ -418,11 +504,11 @@ A single external API or application server therefore does not have unilateral a
 
 
 
-\---
+---
 
 
 
-\## Error Semantics
+## Error Semantics
 
 
 
@@ -442,15 +528,15 @@ This prevents infrastructure or evaluation errors from being misrepresented as p
 
 
 
-\---
+---
 
 
 
-\## Evidence Safety
+## Evidence Safety
 
 
 
-Evidence returned by external sources is treated as \*\*data\*\*, not trusted instructions.
+Evidence returned by external sources is treated as **data**, not trusted instructions.
 
 
 
@@ -462,11 +548,11 @@ Verification is based only on facts relevant to the campaign requirement.
 
 
 
-\---
+---
 
 
 
-\## Campaign Categories
+## Campaign Categories
 
 
 
@@ -474,7 +560,7 @@ ProofFlow is designed around three verification categories.
 
 
 
-\### ONCHAIN
+### ONCHAIN
 
 
 
@@ -482,19 +568,19 @@ Verify actions such as:
 
 
 
-\- Token transfers
+- Token transfers
 
-\- Swaps
+- Swaps
 
-\- Lending
+- Lending
 
-\- Staking
+- Staking
 
-\- Contract interactions
+- Contract interactions
 
-\- NFT actions
+- NFT actions
 
-\- Other blockchain activity
+- Other blockchain activity
 
 
 
@@ -502,7 +588,7 @@ The current working MVP implements this category.
 
 
 
-\### DEVELOPER
+### DEVELOPER
 
 
 
@@ -510,19 +596,19 @@ Planned support for verifiable developer activity such as:
 
 
 
-\- GitHub contributions
+- GitHub contributions
 
-\- Merged pull requests
+- Merged pull requests
 
-\- Repository activity
+- Repository activity
 
-\- Issue completion
+- Issue completion
 
-\- Deployment evidence
+- Deployment evidence
 
 
 
-\### REAL\_WORLD
+### REAL_WORLD
 
 
 
@@ -530,23 +616,23 @@ Planned support for authoritative real-world evidence such as:
 
 
 
-\- Course completion
+- Course completion
 
-\- Event participation
+- Event participation
 
-\- Certifications
+- Certifications
 
-\- Public records
+- Public records
 
-\- API-confirmed milestones
-
-
-
-\---
+- API-confirmed milestones
 
 
 
-\## Intelligent Contract Methods
+---
+
+
+
+## Intelligent Contract Methods
 
 
 
@@ -556,29 +642,29 @@ The ProofFlow contract exposes the following main methods:
 
 ```text
 
-create\_campaign(...)
+create_campaign(...)
 
-get\_campaign(...)
+get_campaign(...)
 
-set\_campaign\_active(...)
+set_campaign_active(...)
 
-verify\_participant(...)
+verify_participant(...)
 
-get\_verification(...)
+get_verification(...)
 
-get\_latest\_participant\_result(...)
+get_latest_participant_result(...)
 
-is\_outcome\_eligible(...)
+is_outcome_eligible(...)
 
 ```
 
 
 
-\---
+---
 
 
 
-\## Repository Structure
+## Repository Structure
 
 
 
@@ -586,53 +672,53 @@ is\_outcome\_eligible(...)
 
 proofflow/
 
-├── adapters/
+â”œâ”€â”€ adapters/
 
-│   ├── ethereum\_rpc.py
+â”‚   â”œâ”€â”€ ethereum_rpc.py
 
-│   ├── onchain\_adapter.py
+â”‚   â”œâ”€â”€ onchain_adapter.py
 
-│   ├── transaction\_interpreter.py
+â”‚   â”œâ”€â”€ transaction_interpreter.py
 
-│   └── evidence\_builder.py
+â”‚   â””â”€â”€ evidence_builder.py
 
-│
+â”‚
 
-├── contracts/
+â”œâ”€â”€ contracts/
 
-│   └── proofflow.py
+â”‚   â””â”€â”€ proofflow.py
 
-│
+â”‚
 
-├── docs/
+â”œâ”€â”€ docs/
 
-│   └── ARCHITECTURE.md
+â”‚   â””â”€â”€ ARCHITECTURE.md
 
-│
+â”‚
 
-├── web/
+â”œâ”€â”€ web/
 
-│   └── ProofFlow React frontend
+â”‚   â””â”€â”€ ProofFlow React frontend
 
-│
+â”‚
 
-├── worker/
+â”œâ”€â”€ worker/
 
-│   └── Cloudflare evidence API
+â”‚   â””â”€â”€ Cloudflare evidence API
 
-│
+â”‚
 
-└── README.md
+â””â”€â”€ README.md
 
 ```
 
 
 
-\---
+---
 
 
 
-\## Frontend
+## Frontend
 
 
 
@@ -640,13 +726,13 @@ The ProofFlow interface is built with:
 
 
 
-\- React
+- React
 
-\- Vite
+- Vite
 
-\- `genlayer-js`
+- `genlayer-js`
 
-\- Browser wallet integration
+- Browser wallet integration
 
 
 
@@ -678,25 +764,70 @@ The completed result view displays:
 
 
 
-\- PASS / FAIL
+- PASS / FAIL
 
-\- Validator reasoning
+- Validator reasoning
 
-\- Evidence
+- Evidence
 
-\- Transaction reference
+- Transaction reference
 
-\- Verification ID
+- Verification ID
 
-\- Outcome eligibility
-
-
-
-\---
+- Outcome eligibility
 
 
 
-\## Run the Frontend Locally
+---
+
+
+
+## Production Frontend Capabilities
+
+The public ProofFlow frontend directly interacts with the deployed GenLayer Intelligent Contract and handles the complete campaign and verification lifecycle.
+
+Current capabilities include:
+
+- Connect a compatible browser wallet
+- Display the connected wallet
+- Disconnect the wallet from the local ProofFlow session
+- Create ONCHAIN campaigns from the browser
+- Automatically construct Sepolia evidence URLs from transaction hashes
+- Dynamically discover campaigns stored on GenLayer
+- Select any discovered campaign for verification
+- Submit participant verification transactions
+- Track GenLayer consensus progress
+- Read persisted verification results
+- Display PASS / FAIL
+- Display validator reasoning and evidence references
+- Display verification IDs
+- Check and display outcome eligibility
+- Recover from browser receipt-wait timeouts without incorrectly reporting a successful verification as failed
+
+### Resilient GenLayer Finalization
+
+GenLayer consensus may sometimes take longer than the browser SDK receipt waiter expects.
+
+ProofFlow therefore does not automatically interpret a receipt-wait timeout as a failed verification.
+
+When this occurs, the frontend checks the Intelligent Contract for a stored participant result. If necessary, it polls the contract for a short recovery window before offering another attempt.
+
+If GenLayer has already finalized and persisted the verification, ProofFlow retrieves that result and displays the actual PASS / FAIL state and outcome eligibility.
+
+This prevents browser timing behavior from being confused with the result of validator consensus.
+
+### Campaign Discovery
+
+The currently deployed contract does not expose a public campaign-count view method. The frontend therefore discovers campaigns by reading contiguous campaign IDs from GenLayer until it reaches the first campaign that does not exist.
+
+This allows campaigns created through the production UI to appear dynamically without maintaining a separate centralized campaign database.
+
+### Wallet Disconnect
+
+The Disconnect control clears ProofFlow's local connected-wallet session. Revoking a site's permission inside a browser wallet such as MetaMask remains controlled by the wallet itself.
+
+---
+## Run the Frontend Locally
 
 
 
@@ -748,11 +879,11 @@ npm run build
 
 
 
-\---
+---
 
 
 
-\## Evidence Adapter Development
+## Evidence Adapter Development
 
 
 
@@ -768,27 +899,27 @@ The adapter does not determine campaign eligibility.
 
 
 
-\---
+---
 
 
 
-\## Networks
+## Networks
 
 
 
-\### Verification
+### Verification
 
 
 
-\*\*GenLayer Studionet\*\*
+**GenLayer Studionet**
 
 
 
-\### Demo Evidence
+### Demo Evidence
 
 
 
-\*\*Ethereum Sepolia\*\*
+**Ethereum Sepolia**
 
 
 
@@ -796,11 +927,11 @@ Chain ID: `11155111`
 
 
 
-\---
+---
 
 
 
-\## Why GenLayer Is Central
+## Why GenLayer Is Central
 
 
 
@@ -816,17 +947,17 @@ GenLayer enables ProofFlow to combine:
 
 
 
-\- Programmable Intelligent Contracts
+- Programmable Intelligent Contracts
 
-\- External evidence
+- External evidence
 
-\- Nondeterministic reasoning
+- Nondeterministic reasoning
 
-\- Multiple validators
+- Multiple validators
 
-\- Consensus
+- Consensus
 
-\- Persistent verification state
+- Persistent verification state
 
 
 
@@ -834,11 +965,11 @@ This allows applications to build outcomes around independently evaluated proof 
 
 
 
-\---
+---
 
 
 
-\## Current MVP Status
+## Current MVP Status
 
 
 
@@ -846,47 +977,61 @@ Working today:
 
 
 
-\- \[x] GenLayer Intelligent Contract
+- [x] GenLayer Intelligent Contract
 
-\- \[x] Campaign creation
+- [x] Campaign creation
 
-\- \[x] Campaign state
+- [x] Campaign state
 
-\- \[x] Live Ethereum Sepolia evidence
+- [x] Live Ethereum Sepolia evidence
 
-\- \[x] Transaction interpretation
+- [x] Transaction interpretation
 
-\- \[x] ERC20 Transfer decoding
+- [x] ERC20 Transfer decoding
 
-\- \[x] Evidence normalization
+- [x] Evidence normalization
 
-\- \[x] Public Cloudflare evidence API
+- [x] Public Cloudflare evidence API
 
-\- \[x] GenLayer validator evaluation
+- [x] GenLayer validator evaluation
 
-\- \[x] Consensus-based PASS / FAIL
+- [x] Consensus-based PASS / FAIL
 
-\- \[x] Persistent verification records
+- [x] Persistent verification records
 
-\- \[x] Outcome eligibility
+- [x] Outcome eligibility
 
-\- \[x] Browser wallet integration
+- [x] Browser wallet integration
 
-\- \[x] React frontend
+- [x] React frontend
 
-\- \[x] Complete transaction lifecycle UI
+- [x] Complete transaction lifecycle UI
 
-\- \[x] Public production deployment
+- [x] Public production deployment
 
-\- \[x] End-to-end production verification
+- [x] End-to-end production verification
+
+- [x] Browser campaign creator
+
+- [x] Dynamic campaign discovery
+
+- [x] Campaign-specific verification
+
+- [x] Automatic Sepolia evidence URL construction
+
+- [x] Wallet connect / disconnect UX
+
+- [x] Reviewer-created production campaign
+
+- [x] Resilient GenLayer finalization recovery
 
 
 
-\---
+---
 
 
 
-\## GenVM Local Tooling Note
+## GenVM Local Tooling Note
 
 
 
@@ -916,11 +1061,11 @@ The contract itself is deployed and functioning on GenLayer Studionet, where the
 
 
 
-\---
+---
 
 
 
-\## Product Vision
+## Product Vision
 
 
 
@@ -960,43 +1105,43 @@ Potential integrations include:
 
 
 
-\- Web3 quests
+- Web3 quests
 
-\- Token incentives
+- Token incentives
 
-\- Grants
+- Grants
 
-\- Bounties
+- Bounties
 
-\- Loyalty systems
+- Loyalty systems
 
-\- Credentials
+- Credentials
 
-\- Education
+- Education
 
-\- Developer rewards
+- Developer rewards
 
-\- Communities
+- Communities
 
-\- Agent workflows
+- Agent workflows
 
-\- Conditional payments
+- Conditional payments
 
-\- Access control
-
-
-
-\---
+- Access control
 
 
 
-\## Built for GenLayer
+---
 
 
 
-ProofFlow demonstrates how GenLayer Intelligent Contracts can act as a programmable consensus layer between \*\*real-world or onchain evidence\*\* and \*\*digital outcomes\*\*.
+## Built for GenLayer
 
 
 
-\*\*Verify actions. Trigger outcomes.\*\*
+ProofFlow demonstrates how GenLayer Intelligent Contracts can act as a programmable consensus layer between **real-world or onchain evidence** and **digital outcomes**.
+
+
+
+**Verify actions. Trigger outcomes.**
 
