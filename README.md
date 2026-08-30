@@ -20,7 +20,7 @@ ProofFlow is designed for rewards, quests, credentials, grants, loyalty programs
 
 **ProofFlow App:**
 
-https://proofflow-8nc.pages.dev
+https://proof-flow.pages.dev
 
 
 
@@ -1144,4 +1144,5 @@ ProofFlow demonstrates how GenLayer Intelligent Contracts can act as a programma
 
 
 **Verify actions. Trigger outcomes.**
+
 
