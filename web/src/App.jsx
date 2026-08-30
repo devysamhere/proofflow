@@ -1,31 +1,67 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import "./App.css";
 import {
-  getCampaign,
+  PROOFFLOW_CONTRACT,
+  buildOnchainEvidenceUrl,
   connectGenLayerWallet,
-  verifyParticipant,
+  createCampaign,
+  disconnectGenLayerWallet,
+  getCampaigns,
   getLatestParticipantResult,
   isOutcomeEligible,
+  verifyParticipant,
 } from "./genlayer";
 
-const CONTRACT_ADDRESS = "0xfC46FC2C0Cb8A93b8B653EDe3764ECe1e03D642D";
+const DEFAULT_PARTICIPANT =
+  "0xe6ad325573eb0b6f8edc7ee5c54d3d6179bbf687";
+
+const EMPTY_CAMPAIGN_FORM = {
+  title: "",
+  description: "",
+  requirement: "",
+  network: "sepolia",
+  transactionHash: "",
+  outcomeValue: "",
+};
 
 function shortenAddress(address) {
   if (!address) return "";
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
+function getTransactionHash(transaction) {
+  if (typeof transaction === "string") {
+    return transaction;
+  }
+
+  return transaction?.hash || transaction?.transactionHash || "";
+}
+
+function getNetworkLabel(campaign) {
+  const evidenceUrl = String(campaign?.evidence_url || "").toLowerCase();
+
+  if (evidenceUrl.includes("sepolia")) {
+    return "Ethereum Sepolia";
+  }
+
+  return "External Evidence";
+}
+
 function App() {
   const [wallet, setWallet] = useState("");
+  const [walletMenuOpen, setWalletMenuOpen] = useState(false);
 
-  const [campaign, setCampaign] = useState(null);
+  const [campaigns, setCampaigns] = useState([]);
   const [campaignLoading, setCampaignLoading] = useState(true);
   const [campaignError, setCampaignError] = useState("");
 
+  const [selectedCampaign, setSelectedCampaign] = useState(null);
+
   const [showVerification, setShowVerification] = useState(false);
+  const [showCampaignCreator, setShowCampaignCreator] = useState(false);
 
   const [participantWallet, setParticipantWallet] = useState(
-    "0xe6ad325573eb0b6f8edc7ee5c54d3d6179bbf687"
+    DEFAULT_PARTICIPANT
   );
 
   const [verificationStatus, setVerificationStatus] = useState("idle");
@@ -34,39 +70,96 @@ function App() {
   const [outcomeEligible, setOutcomeEligible] = useState(null);
   const [verificationTx, setVerificationTx] = useState("");
 
-  useEffect(() => {
-    async function loadCampaign() {
-      try {
-        setCampaignLoading(true);
-        setCampaignError("");
+  const [campaignForm, setCampaignForm] = useState(EMPTY_CAMPAIGN_FORM);
+  const [creatorStatus, setCreatorStatus] = useState("idle");
+  const [creatorMessage, setCreatorMessage] = useState("");
+  const [creatorTx, setCreatorTx] = useState("");
 
-        const liveCampaign = await getCampaign(1);
-        setCampaign(liveCampaign);
-      } catch (error) {
-        console.error("Failed to load ProofFlow campaign:", error);
-        setCampaignError("Unable to load campaign from GenLayer.");
-      } finally {
-        setCampaignLoading(false);
+  const loadCampaigns = async () => {
+    try {
+      setCampaignLoading(true);
+      setCampaignError("");
+
+      const liveCampaigns = await getCampaigns({
+        startId: 1,
+        maxCampaigns: 50,
+      });
+
+      setCampaigns(liveCampaigns);
+
+      if (liveCampaigns.length === 0) {
+        setCampaignError("No campaigns are currently available.");
       }
+    } catch (error) {
+      console.error("Failed to load ProofFlow campaigns:", error);
+      setCampaignError("Unable to load campaigns from GenLayer.");
+    } finally {
+      setCampaignLoading(false);
     }
+  };
 
-    loadCampaign();
+  useEffect(() => {
+    loadCampaigns();
   }, []);
 
   useEffect(() => {
-    if (!showVerification) return;
+    if (!window.ethereum?.on) {
+      return undefined;
+    }
+
+    const handleAccountsChanged = (accounts) => {
+      if (!accounts || accounts.length === 0) {
+        setWallet("");
+        setWalletMenuOpen(false);
+        return;
+      }
+
+      if (wallet) {
+        setWallet(accounts[0]);
+      }
+    };
+
+    window.ethereum.on("accountsChanged", handleAccountsChanged);
+
+    return () => {
+      if (window.ethereum?.removeListener) {
+        window.ethereum.removeListener(
+          "accountsChanged",
+          handleAccountsChanged
+        );
+      }
+    };
+  }, [wallet]);
+
+  useEffect(() => {
+    if (!showVerification && !showCampaignCreator) {
+      return undefined;
+    }
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
     const handleKeyDown = (event) => {
-      if (
-        event.key === "Escape" &&
-        verificationStatus !== "connecting" &&
-        verificationStatus !== "submitting" &&
-        verificationStatus !== "waiting"
-      ) {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      const verificationBusy =
+        verificationStatus === "connecting" ||
+        verificationStatus === "submitting" ||
+        verificationStatus === "waiting";
+
+      const creatorBusy =
+        creatorStatus === "connecting" ||
+        creatorStatus === "submitting" ||
+        creatorStatus === "waiting";
+
+      if (showVerification && !verificationBusy) {
         setShowVerification(false);
+      }
+
+      if (showCampaignCreator && !creatorBusy) {
+        setShowCampaignCreator(false);
       }
     };
 
@@ -76,34 +169,192 @@ function App() {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [showVerification, verificationStatus]);
+  }, [
+    showVerification,
+    showCampaignCreator,
+    verificationStatus,
+    creatorStatus,
+  ]);
 
   const connectWallet = async () => {
     if (!window.ethereum) {
       alert(
         "No compatible browser wallet was detected. Install MetaMask or another compatible wallet."
       );
-      return;
+      return null;
     }
 
     try {
-      const { account } = await connectGenLayerWallet();
-      setWallet(account);
+      const connection = await connectGenLayerWallet();
+      setWallet(connection.account);
+      setWalletMenuOpen(false);
+      return connection;
     } catch (error) {
       console.error("Wallet connection failed:", error);
+      return null;
     }
   };
 
-  const openVerification = () => {
+  const handleWalletButton = async () => {
+    if (wallet) {
+      setWalletMenuOpen((current) => !current);
+      return;
+    }
+
+    await connectWallet();
+  };
+
+  const handleDisconnect = () => {
+    disconnectGenLayerWallet();
+
+    setWallet("");
+    setWalletMenuOpen(false);
+  };
+
+  const openCampaignCreator = () => {
+    setCampaignForm(EMPTY_CAMPAIGN_FORM);
+    setCreatorStatus("idle");
+    setCreatorMessage("");
+    setCreatorTx("");
+    setWalletMenuOpen(false);
+    setShowCampaignCreator(true);
+  };
+
+  const closeCampaignCreator = () => {
+    const creatorBusy =
+      creatorStatus === "connecting" ||
+      creatorStatus === "submitting" ||
+      creatorStatus === "waiting";
+
+    if (creatorBusy) {
+      return;
+    }
+
+    setShowCampaignCreator(false);
+  };
+
+  const handleCampaignField = (event) => {
+    const { name, value } = event.target;
+
+    setCampaignForm((current) => ({
+      ...current,
+      [name]: value,
+    }));
+  };
+
+  const handleCreateCampaign = async (event) => {
+    event.preventDefault();
+
+    try {
+      setCreatorMessage("");
+      setCreatorTx("");
+
+      const title = campaignForm.title.trim();
+      const description = campaignForm.description.trim();
+      const requirement = campaignForm.requirement.trim();
+      const transactionHash = campaignForm.transactionHash.trim();
+      const outcomeValue = campaignForm.outcomeValue.trim();
+
+      if (!title) {
+        throw new Error("Enter a campaign title.");
+      }
+
+      if (!requirement) {
+        throw new Error("Describe the action participants must prove.");
+      }
+
+      if (!transactionHash) {
+        throw new Error(
+          "Enter the Sepolia transaction hash that will be used as evidence."
+        );
+      }
+
+      if (!outcomeValue) {
+        throw new Error("Enter the outcome participants can unlock.");
+      }
+
+      const evidenceUrl = buildOnchainEvidenceUrl({
+        transactionHash,
+        network: campaignForm.network,
+      });
+
+      setCreatorStatus("connecting");
+      setCreatorMessage("Connecting wallet...");
+
+      const connection = await connectGenLayerWallet();
+
+      if (connection.account) {
+        setWallet(connection.account);
+      }
+
+      setCreatorStatus("submitting");
+      setCreatorMessage("Creating campaign on GenLayer...");
+
+      const transaction = await createCampaign(connection.client, {
+        title,
+        description,
+        category: "ONCHAIN",
+        requirement,
+        evidenceUrl,
+        startTime: 0,
+        endTime: 0,
+        outcomeType: "ELIGIBILITY",
+        outcomeValue,
+        createdAtHint: 0,
+      });
+
+      const txHash = getTransactionHash(transaction);
+
+      if (txHash) {
+        setCreatorTx(txHash);
+      }
+
+      setCreatorStatus("waiting");
+      setCreatorMessage(
+        "Campaign submitted. Waiting for GenLayer validator consensus..."
+      );
+
+      if (connection.client.waitForTransactionReceipt && txHash) {
+        await connection.client.waitForTransactionReceipt({
+          hash: txHash,
+        });
+      }
+
+      await loadCampaigns();
+
+      setCreatorStatus("complete");
+      setCreatorMessage(
+        "Campaign created successfully and stored on GenLayer."
+      );
+    } catch (error) {
+      console.error("Campaign creation failed:", error);
+
+      setCreatorStatus("error");
+
+      const message =
+        error?.message || "Campaign creation failed. Please try again.";
+
+      setCreatorMessage(message);
+    }
+  };
+
+  const openVerification = (campaign) => {
+    setSelectedCampaign(campaign);
+    setVerificationStatus("idle");
+    setVerificationMessage("");
+    setVerificationResult(null);
+    setOutcomeEligible(null);
+    setVerificationTx("");
     setShowVerification(true);
   };
 
   const closeVerification = () => {
-    if (
+    const verificationBusy =
       verificationStatus === "connecting" ||
       verificationStatus === "submitting" ||
-      verificationStatus === "waiting"
-    ) {
+      verificationStatus === "waiting";
+
+    if (verificationBusy) {
       return;
     }
 
@@ -111,6 +362,10 @@ function App() {
   };
 
   const handleVerify = async () => {
+    if (!selectedCampaign) {
+      return;
+    }
+
     try {
       setVerificationStatus("connecting");
       setVerificationMessage("Connecting wallet...");
@@ -127,10 +382,13 @@ function App() {
       setVerificationStatus("submitting");
       setVerificationMessage("Submitting verification to GenLayer...");
 
-      const tx = await verifyParticipant(client, participantWallet, 1);
+      const tx = await verifyParticipant(
+        client,
+        participantWallet,
+        Number(selectedCampaign.campaign_id)
+      );
 
-      const txHash =
-        typeof tx === "string" ? tx : tx?.hash || tx?.transactionHash || "";
+      const txHash = getTransactionHash(tx);
 
       if (txHash) {
         setVerificationTx(txHash);
@@ -141,17 +399,74 @@ function App() {
         "Transaction submitted. Waiting for GenLayer validator consensus..."
       );
 
+      let receiptWaitError = null;
+
       if (client.waitForTransactionReceipt && txHash) {
-        await client.waitForTransactionReceipt({
-          hash: txHash,
-        });
+        try {
+          await client.waitForTransactionReceipt({
+            hash: txHash,
+          });
+        } catch (error) {
+          console.warn(
+            "Receipt wait did not complete in time. Checking stored verification result...",
+            error
+          );
+
+          receiptWaitError = error;
+        }
       }
 
-      const result = await getLatestParticipantResult(participantWallet, 1);
-      const eligible = await isOutcomeEligible(participantWallet, 1);
+      const readStoredResult = async () => {
+        const storedResult = await getLatestParticipantResult(
+          participantWallet,
+          Number(selectedCampaign.campaign_id)
+        );
+
+        if (!storedResult?.found) {
+          return null;
+        }
+
+        const storedEligibility = await isOutcomeEligible(
+          participantWallet,
+          Number(selectedCampaign.campaign_id)
+        );
+
+        return {
+          result: storedResult,
+          eligible: Boolean(storedEligibility),
+        };
+      };
+
+      let stored = await readStoredResult();
+
+      if (!stored && receiptWaitError) {
+        setVerificationMessage(
+          "GenLayer is still finalizing the verification. Checking the stored result..."
+        );
+
+        for (let attempt = 0; attempt < 4 && !stored; attempt += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 3000));
+          stored = await readStoredResult();
+        }
+      }
+
+      if (!stored) {
+        if (receiptWaitError) {
+          throw new Error(
+            "GenLayer is still finalizing this verification. Please wait a moment before trying again."
+          );
+        }
+
+        throw new Error(
+          "Verification transaction completed, but no stored result was found."
+        );
+      }
+
+      const result = stored.result;
+      const eligible = stored.eligible;
 
       setVerificationResult(result);
-      setOutcomeEligible(Boolean(eligible));
+      setOutcomeEligible(eligible);
       setVerificationStatus("complete");
 
       if (result?.passed) {
@@ -184,6 +499,11 @@ function App() {
     verificationStatus === "connecting" ||
     verificationStatus === "submitting" ||
     verificationStatus === "waiting";
+
+  const creatorProcessing =
+    creatorStatus === "connecting" ||
+    creatorStatus === "submitting" ||
+    creatorStatus === "waiting";
 
   const currentStep =
     verificationStatus === "idle"
@@ -220,10 +540,24 @@ function App() {
           <a href="#how">How it works</a>
         </nav>
 
-        <button className="walletButton" onClick={connectWallet}>
-          <span className={wallet ? "walletDot connected" : "walletDot"} />
-          {wallet ? shortenAddress(wallet) : "Connect Wallet"}
-        </button>
+        <div className="walletArea">
+          <button className="walletButton" onClick={handleWalletButton}>
+            <span className={wallet ? "walletDot connected" : "walletDot"} />
+            {wallet ? shortenAddress(wallet) : "Connect Wallet"}
+            {wallet && <span className="walletChevron">⌄</span>}
+          </button>
+
+          {wallet && walletMenuOpen && (
+            <div className="walletMenu">
+              <span>CONNECTED WALLET</span>
+              <strong>{shortenAddress(wallet)}</strong>
+
+              <button onClick={handleDisconnect}>
+                Disconnect
+              </button>
+            </div>
+          )}
+        </div>
       </header>
 
       <main>
@@ -250,7 +584,12 @@ function App() {
                 Explore Campaigns
               </a>
 
-
+              <button
+                className="secondaryButton"
+                onClick={openCampaignCreator}
+              >
+                Create Campaign
+              </button>
             </div>
 
             <div className="networkInfo">
@@ -259,7 +598,9 @@ function App() {
 
               <span className="divider">&bull;</span>
 
-              <span>Contract {shortenAddress(CONTRACT_ADDRESS)}</span>
+              <span>
+                Contract {shortenAddress(PROOFFLOW_CONTRACT)}
+              </span>
             </div>
           </div>
 
@@ -282,7 +623,7 @@ function App() {
                   <p>Ethereum Sepolia</p>
                 </div>
 
-                <b>&#10003;</b>
+                <b>✓</b>
               </div>
 
               <div className="flowLine" />
@@ -295,7 +636,7 @@ function App() {
                   <p>Live blockchain data</p>
                 </div>
 
-                <b>&#10003;</b>
+                <b>✓</b>
               </div>
 
               <div className="flowLine" />
@@ -308,7 +649,7 @@ function App() {
                   <p>GenLayer validators</p>
                 </div>
 
-                <b>&#10003;</b>
+                <b>✓</b>
               </div>
 
               <div className="flowLine" />
@@ -321,7 +662,7 @@ function App() {
                   <p>Participant eligible</p>
                 </div>
 
-                <b>&#10003;</b>
+                <b>✓</b>
               </div>
             </div>
 
@@ -361,66 +702,92 @@ function App() {
               <h2>Complete actions. Prove the result.</h2>
             </div>
 
-
+            <button
+              className="createCampaignButton"
+              onClick={openCampaignCreator}
+            >
+              + Create Campaign
+            </button>
           </div>
 
+          {campaignLoading && (
+            <div className="campaignNotice">
+              Loading campaigns from GenLayer...
+            </div>
+          )}
+
+          {!campaignLoading && campaignError && campaigns.length === 0 && (
+            <div className="campaignNotice error">
+              {campaignError}
+            </div>
+          )}
+
           <div className="campaignGrid">
-            <article className="campaignCard featuredCampaign">
-              <div className="cardTop">
-                <span className="category">
-                  {campaign?.category || "ONCHAIN"}
-                </span>
-
-                <span className="activeBadge">
-                  {campaignLoading
-                    ? "LOADING"
-                    : campaign?.active
-                      ? "ACTIVE"
-                      : "INACTIVE"}
-                </span>
-              </div>
-
-              <h3>
-                {campaignLoading
-                  ? "Loading campaign..."
-                  : campaign?.title || "Campaign unavailable"}
-              </h3>
-
-              <p>
-                {campaignError ||
-                  campaign?.description ||
-                  "Loading live campaign data from GenLayer..."}
-              </p>
-
-              <div className="requirement">
-                <span>REQUIREMENT</span>
-
-                <strong>
-                  {campaign?.requirement || "Loading requirement..."}
-                </strong>
-              </div>
-
-              <div className="campaignMeta">
-                <div>
-                  <span>NETWORK</span>
-                  <strong>Ethereum Sepolia</strong>
-                </div>
-
-                <div>
-                  <span>OUTCOME</span>
-                  <strong>{campaign?.outcome_value || "Loading..."}</strong>
-                </div>
-              </div>
-
-              <button
-                className="verifyButton"
-                onClick={openVerification}
-                disabled={campaignLoading || Boolean(campaignError)}
+            {campaigns.map((campaign, index) => (
+              <article
+                className={
+                  index === 0
+                    ? "campaignCard featuredCampaign"
+                    : "campaignCard"
+                }
+                key={campaign.campaign_id}
               >
-                <span>View & Verify</span>
-                <span className="buttonArrow">&rarr;</span>
-              </button>
-            </article>
+                <div className="cardTop">
+                  <span className="category">
+                    {campaign.category || "ONCHAIN"}
+                  </span>
+
+                  <span
+                    className={
+                      campaign.active
+                        ? "activeBadge"
+                        : "inactiveBadge"
+                    }
+                  >
+                    {campaign.active ? "ACTIVE" : "INACTIVE"}
+                  </span>
+                </div>
+
+                <h3>{campaign.title}</h3>
+
+                <p>
+                  {campaign.description ||
+                    "A verifiable ProofFlow campaign stored on GenLayer."}
+                </p>
+
+                <div className="requirement">
+                  <span>REQUIREMENT</span>
+                  <strong>{campaign.requirement}</strong>
+                </div>
+
+                <div className="campaignMeta">
+                  <div>
+                    <span>NETWORK</span>
+                    <strong>{getNetworkLabel(campaign)}</strong>
+                  </div>
+
+                  <div>
+                    <span>OUTCOME</span>
+                    <strong>
+                      {campaign.outcome_value || campaign.outcome_type}
+                    </strong>
+                  </div>
+                </div>
+
+                <button
+                  className="verifyButton"
+                  onClick={() => openVerification(campaign)}
+                  disabled={!campaign.active}
+                >
+                  <span>
+                    {campaign.active ? "View & Verify" : "Campaign Inactive"}
+                  </span>
+                  {campaign.active && (
+                    <span className="buttonArrow">&rarr;</span>
+                  )}
+                </button>
+              </article>
+            ))}
 
             <article className="campaignCard coming">
               <div className="cardTop">
@@ -428,7 +795,7 @@ function App() {
                 <span className="soonBadge">COMING NEXT</span>
               </div>
 
-              <h3>Developer Contribution Quest</h3>
+              <h3>Developer Contribution Proof</h3>
 
               <p>
                 Verify qualifying development activity using authoritative
@@ -533,7 +900,215 @@ function App() {
         <span>Powered by GenLayer</span>
       </footer>
 
-      {showVerification && (
+      {showCampaignCreator && (
+        <div
+          className="verificationOverlay"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              closeCampaignCreator();
+            }
+          }}
+        >
+          <div
+            className="campaignCreatorModal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="campaign-creator-title"
+          >
+            <div className="verificationModalTop">
+              <div>
+                <span className="verificationEyebrow">
+                  CREATE ON GENLAYER
+                </span>
+
+                <h3 id="campaign-creator-title">
+                  Create a ProofFlow campaign
+                </h3>
+
+                <p>
+                  Define an action and the outcome it unlocks.
+                </p>
+              </div>
+
+              <button
+                className="closeVerification"
+                onClick={closeCampaignCreator}
+                disabled={creatorProcessing}
+                aria-label="Close campaign creator"
+              >
+                &times;
+              </button>
+            </div>
+
+            <form
+              className="campaignCreatorBody"
+              onSubmit={handleCreateCampaign}
+            >
+              <div className="creatorIntro">
+                <div className="creatorIntroIcon">01</div>
+
+                <div>
+                  <strong>Onchain proof campaign</strong>
+                  <p>
+                    This MVP uses a live Ethereum Sepolia transaction as
+                    evidence. ProofFlow retrieves the transaction facts and
+                    GenLayer validators decide whether your requirement was
+                    satisfied.
+                  </p>
+                </div>
+              </div>
+
+              <div className="creatorFormGrid">
+                <label className="creatorField fullWidth">
+                  <span>Campaign title</span>
+
+                  <input
+                    name="title"
+                    value={campaignForm.title}
+                    onChange={handleCampaignField}
+                    placeholder="e.g. Sepolia Token Transfer"
+                    disabled={creatorProcessing}
+                  />
+                </label>
+
+                <label className="creatorField fullWidth">
+                  <span>Description</span>
+
+                  <textarea
+                    name="description"
+                    value={campaignForm.description}
+                    onChange={handleCampaignField}
+                    placeholder="Explain what this campaign is for."
+                    rows="3"
+                    disabled={creatorProcessing}
+                  />
+                </label>
+
+                <label className="creatorField fullWidth">
+                  <span>Verification requirement</span>
+
+                  <textarea
+                    name="requirement"
+                    value={campaignForm.requirement}
+                    onChange={handleCampaignField}
+                    placeholder="e.g. Participant must have successfully transferred at least 0.1 Rel ERC20 tokens on Sepolia, and the transfer must originate from the participant wallet."
+                    rows="4"
+                    disabled={creatorProcessing}
+                  />
+                  <small>
+                    Write the condition clearly. GenLayer validators will
+                    evaluate the evidence against this requirement.
+                  </small>
+                </label>
+
+                <label className="creatorField">
+                  <span>Network</span>
+
+                  <select
+                    name="network"
+                    value={campaignForm.network}
+                    onChange={handleCampaignField}
+                    disabled={creatorProcessing}
+                  >
+                    <option value="sepolia">
+                      Ethereum Sepolia
+                    </option>
+                  </select>
+                </label>
+
+                <label className="creatorField">
+                  <span>Outcome</span>
+
+                  <input
+                    name="outcomeValue"
+                    value={campaignForm.outcomeValue}
+                    onChange={handleCampaignField}
+                    placeholder="e.g. DEMO_REWARD"
+                    disabled={creatorProcessing}
+                  />
+                </label>
+
+                <label className="creatorField fullWidth">
+                  <span>Evidence transaction hash</span>
+
+                  <input
+                    className="monospaceInput"
+                    name="transactionHash"
+                    value={campaignForm.transactionHash}
+                    onChange={handleCampaignField}
+                    placeholder="0x..."
+                    disabled={creatorProcessing}
+                  />
+
+                  <small>
+                    ProofFlow automatically converts this into a live evidence
+                    endpoint. The URL is not stored manually by the creator.
+                  </small>
+                </label>
+              </div>
+
+              {creatorStatus !== "idle" && (
+                <div className={`creatorStatus ${creatorStatus}`}>
+                  <div className="statusHeading">
+                    {creatorProcessing && (
+                      <span className="verificationSpinner" />
+                    )}
+
+                    {creatorStatus === "complete" && (
+                      <span className="creatorSuccessIcon">✓</span>
+                    )}
+
+                    <strong>{creatorMessage}</strong>
+                  </div>
+
+                  {creatorTx && (
+                    <div className="transactionBox">
+                      <span>TRANSACTION</span>
+                      <code>{creatorTx}</code>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="creatorActions">
+                <button
+                  type="button"
+                  className="creatorCancelButton"
+                  onClick={closeCampaignCreator}
+                  disabled={creatorProcessing}
+                >
+                  {creatorStatus === "complete" ? "Close" : "Cancel"}
+                </button>
+
+                {creatorStatus !== "complete" && (
+                  <button
+                    type="submit"
+                    className="creatorSubmitButton"
+                    disabled={creatorProcessing}
+                  >
+                    {creatorStatus === "connecting"
+                      ? "Connecting Wallet..."
+                      : creatorStatus === "submitting"
+                        ? "Creating Campaign..."
+                        : creatorStatus === "waiting"
+                          ? "Waiting for Consensus..."
+                          : creatorStatus === "error"
+                            ? "Retry Creation"
+                            : "Create on GenLayer"}
+                  </button>
+                )}
+              </div>
+            </form>
+
+            <div className="verificationModalFooter">
+              Campaign creation is recorded through the ProofFlow Intelligent
+              Contract on GenLayer Studionet
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showVerification && selectedCampaign && (
         <div
           className="verificationOverlay"
           onMouseDown={(event) => {
@@ -562,7 +1137,7 @@ function App() {
                     : "Verify campaign completion"}
                 </h3>
 
-                <p>{campaign?.title || "Sepolia ERC20 Transfer Quest"}</p>
+                <p>{selectedCampaign.title}</p>
               </div>
 
               <button
@@ -578,7 +1153,9 @@ function App() {
             <div className="verificationCampaignSummary">
               <div>
                 <span>NETWORK</span>
-                <strong>Ethereum Sepolia</strong>
+                <strong>
+                  {getNetworkLabel(selectedCampaign)}
+                </strong>
               </div>
 
               <div>
@@ -588,62 +1165,79 @@ function App() {
 
               <div>
                 <span>OUTCOME</span>
-                <strong>{campaign?.outcome_value || "DEMO_REWARD"}</strong>
+                <strong>
+                  {selectedCampaign.outcome_value ||
+                    selectedCampaign.outcome_type}
+                </strong>
               </div>
             </div>
 
             <div className="verificationProgress">
               <div
                 className={
-                  currentStep >= 1 ? "progressStep active" : "progressStep"
+                  currentStep >= 1
+                    ? "progressStep active"
+                    : "progressStep"
                 }
               >
-                <span>{currentStep > 1 ? "âœ“" : "1"}</span>
+                <span>{currentStep > 1 ? "✓" : "1"}</span>
                 <small>Wallet</small>
               </div>
 
               <div
                 className={
-                  currentStep >= 2 ? "progressLine active" : "progressLine"
+                  currentStep >= 2
+                    ? "progressLine active"
+                    : "progressLine"
                 }
               />
 
               <div
                 className={
-                  currentStep >= 2 ? "progressStep active" : "progressStep"
+                  currentStep >= 2
+                    ? "progressStep active"
+                    : "progressStep"
                 }
               >
-                <span>{currentStep > 2 ? "âœ“" : "2"}</span>
+                <span>{currentStep > 2 ? "✓" : "2"}</span>
                 <small>Submit</small>
               </div>
 
               <div
                 className={
-                  currentStep >= 3 ? "progressLine active" : "progressLine"
+                  currentStep >= 3
+                    ? "progressLine active"
+                    : "progressLine"
                 }
               />
 
               <div
                 className={
-                  currentStep >= 3 ? "progressStep active" : "progressStep"
+                  currentStep >= 3
+                    ? "progressStep active"
+                    : "progressStep"
                 }
               >
-                <span>{currentStep > 3 ? "âœ“" : "3"}</span>
+                <span>{currentStep > 3 ? "✓" : "3"}</span>
                 <small>Consensus</small>
               </div>
 
               <div
                 className={
-                  currentStep >= 4 ? "progressLine active" : "progressLine"
+                  currentStep >= 4
+                    ? "progressLine active"
+                    : "progressLine"
                 }
               />
 
               <div
                 className={
-                  currentStep >= 4 ? "progressStep active" : "progressStep"
+                  currentStep >= 4
+                    ? "progressStep active"
+                    : "progressStep"
                 }
               >
-                <span>{currentStep >= 4 ? "âœ“" : "4"}</span>
+                <span>{currentStep >= 4 ? "✓" : "4"}</span>
                 <small>Result</small>
               </div>
             </div>
@@ -652,9 +1246,10 @@ function App() {
               {!hasCompletedResult && (
                 <>
                   <p className="verificationCopy">
-                    Enter the wallet that completed the required Sepolia action.
-                    ProofFlow will retrieve live evidence and submit the
-                    verification to GenLayer validators for consensus.
+                    Enter the wallet that completed the required action.
+                    ProofFlow will retrieve the campaign's live evidence and
+                    submit the verification to GenLayer validators for
+                    consensus.
                   </p>
 
                   <label className="walletField">
@@ -709,7 +1304,7 @@ function App() {
                         }`}
                       >
                         <div className="resultSummaryIcon">
-                          {verificationResult.passed ? "âœ“" : "Ã—"}
+                          {verificationResult.passed ? "✓" : "×"}
                         </div>
 
                         <div className="resultSummaryCopy">
@@ -735,7 +1330,9 @@ function App() {
                               : "outcomeBadge notEligible"
                           }
                         >
-                          {outcomeEligible ? "ELIGIBLE" : "NOT ELIGIBLE"}
+                          {outcomeEligible
+                            ? "ELIGIBLE"
+                            : "NOT ELIGIBLE"}
                         </div>
                       </div>
 
