@@ -2,13 +2,12 @@ import { useEffect, useState } from "react";
 import "./App.css";
 import {
   PROOFFLOW_CONTRACT,
-  buildOnchainEvidenceUrl,
   connectGenLayerWallet,
   createCampaign,
   disconnectGenLayerWallet,
   getCampaigns,
   getLatestParticipantResult,
-  isOutcomeEligible,
+  getParticipantOutcome,
   verifyParticipant,
 } from "./genlayer";
 
@@ -19,8 +18,7 @@ const EMPTY_CAMPAIGN_FORM = {
   title: "",
   description: "",
   requirement: "",
-  network: "sepolia",
-  transactionHash: "",
+  network: "SEPOLIA",
   outcomeValue: "",
 };
 
@@ -38,13 +36,13 @@ function getTransactionHash(transaction) {
 }
 
 function getNetworkLabel(campaign) {
-  const evidenceUrl = String(campaign?.evidence_url || "").toLowerCase();
+  const network = String(campaign?.network || "").trim().toUpperCase();
 
-  if (evidenceUrl.includes("sepolia")) {
+  if (network === "SEPOLIA") {
     return "Ethereum Sepolia";
   }
 
-  return "External Evidence";
+  return network || "Unknown Network";
 }
 
 function App() {
@@ -67,7 +65,8 @@ function App() {
   const [verificationStatus, setVerificationStatus] = useState("idle");
   const [verificationMessage, setVerificationMessage] = useState("");
   const [verificationResult, setVerificationResult] = useState(null);
-  const [outcomeEligible, setOutcomeEligible] = useState(null);
+  const [participantProof, setParticipantProof] = useState("");
+  const [outcomeRecord, setOutcomeRecord] = useState(null);
   const [verificationTx, setVerificationTx] = useState("");
 
   const [campaignForm, setCampaignForm] = useState(EMPTY_CAMPAIGN_FORM);
@@ -80,10 +79,7 @@ function App() {
       setCampaignLoading(true);
       setCampaignError("");
 
-      const liveCampaigns = await getCampaigns({
-        startId: 1,
-        maxCampaigns: 50,
-      });
+      const liveCampaigns = await getCampaigns();
 
       setCampaigns(liveCampaigns);
 
@@ -252,7 +248,6 @@ function App() {
       const title = campaignForm.title.trim();
       const description = campaignForm.description.trim();
       const requirement = campaignForm.requirement.trim();
-      const transactionHash = campaignForm.transactionHash.trim();
       const outcomeValue = campaignForm.outcomeValue.trim();
 
       if (!title) {
@@ -263,20 +258,11 @@ function App() {
         throw new Error("Describe the action participants must prove.");
       }
 
-      if (!transactionHash) {
-        throw new Error(
-          "Enter the Sepolia transaction hash that will be used as evidence."
-        );
-      }
 
       if (!outcomeValue) {
         throw new Error("Enter the outcome participants can unlock.");
       }
 
-      const evidenceUrl = buildOnchainEvidenceUrl({
-        transactionHash,
-        network: campaignForm.network,
-      });
 
       setCreatorStatus("connecting");
       setCreatorMessage("Connecting wallet...");
@@ -295,7 +281,7 @@ function App() {
         description,
         category: "ONCHAIN",
         requirement,
-        evidenceUrl,
+        network: campaignForm.network,
         startTime: 0,
         endTime: 0,
         outcomeType: "ELIGIBILITY",
@@ -343,7 +329,8 @@ function App() {
     setVerificationStatus("idle");
     setVerificationMessage("");
     setVerificationResult(null);
-    setOutcomeEligible(null);
+    setParticipantProof("");
+    setOutcomeRecord(null);
     setVerificationTx("");
     setShowVerification(true);
   };
@@ -370,7 +357,7 @@ function App() {
       setVerificationStatus("connecting");
       setVerificationMessage("Connecting wallet...");
       setVerificationResult(null);
-      setOutcomeEligible(null);
+      setOutcomeRecord(null);
       setVerificationTx("");
 
       const { account, client } = await connectGenLayerWallet();
@@ -382,11 +369,12 @@ function App() {
       setVerificationStatus("submitting");
       setVerificationMessage("Submitting verification to GenLayer...");
 
-      const tx = await verifyParticipant(
-        client,
-        participantWallet,
-        Number(selectedCampaign.campaign_id)
-      );
+      const tx = await verifyParticipant(client, {
+        campaignId: Number(selectedCampaign.campaign_id),
+        participant: participantWallet,
+        proof: participantProof,
+        verifiedAtHint: 0,
+      });
 
       const txHash = getTransactionHash(tx);
 
@@ -403,10 +391,35 @@ function App() {
 
       if (client.waitForTransactionReceipt && txHash) {
         try {
-          await client.waitForTransactionReceipt({
+          const receipt = await client.waitForTransactionReceipt({
             hash: txHash,
           });
+
+          const leaderReceipt = Array.isArray(
+            receipt?.consensus_data?.leader_receipt
+          )
+            ? receipt.consensus_data.leader_receipt[0]
+            : receipt?.consensus_data?.leader_receipt;
+
+          const leaderResult = leaderReceipt?.result;
+
+          if (leaderResult?.status === "rollback") {
+            throw new Error(
+              String(
+                leaderResult?.payload ||
+                  "Verification transaction was rolled back by the contract."
+              )
+            );
+          }
         } catch (error) {
+          const receiptErrorMessage = String(
+            error?.message || error || ""
+          ).toLowerCase();
+
+          if (!receiptErrorMessage.includes("timed out waiting for transaction")) {
+            throw error;
+          }
+
           console.warn(
             "Receipt wait did not complete in time. Checking stored verification result...",
             error
@@ -426,14 +439,22 @@ function App() {
           return null;
         }
 
-        const storedEligibility = await isOutcomeEligible(
-          participantWallet,
-          Number(selectedCampaign.campaign_id)
-        );
+        let storedOutcome = null;
+
+        if (storedResult?.passed) {
+          const outcome = await getParticipantOutcome(
+            participantWallet,
+            Number(selectedCampaign.campaign_id)
+          );
+
+          if (outcome?.found) {
+            storedOutcome = outcome;
+          }
+        }
 
         return {
           result: storedResult,
-          eligible: Boolean(storedEligibility),
+          outcome: storedOutcome,
         };
       };
 
@@ -463,14 +484,18 @@ function App() {
       }
 
       const result = stored.result;
-      const eligible = stored.eligible;
+      const outcome = stored.outcome;
 
       setVerificationResult(result);
-      setOutcomeEligible(eligible);
+      setOutcomeRecord(outcome);
       setVerificationStatus("complete");
 
       if (result?.passed) {
-        setVerificationMessage("Verification passed.");
+        setVerificationMessage(
+          outcome?.triggered
+            ? "Verification passed and the campaign outcome was triggered."
+            : "Verification passed."
+        );
       } else {
         setVerificationMessage("Verification completed but did not pass.");
       }
@@ -482,9 +507,19 @@ function App() {
       const message =
         error?.message || "Verification failed. Please try again.";
 
-      if (
-        message.toLowerCase().includes("evaluation unavailable") ||
-        message.toLowerCase().includes("please retry")
+      const normalizedMessage = message.toLowerCase();
+
+      if (normalizedMessage.includes("outcome already triggered for participant")) {
+        setVerificationMessage(
+          "Outcome Already Triggered - this participant has already completed this campaign successfully."
+        );
+      } else if (normalizedMessage.includes("proof already used for this campaign")) {
+        setVerificationMessage(
+          "Proof Already Used - this transaction proof has already been submitted for this campaign."
+        );
+      } else if (
+        normalizedMessage.includes("evaluation unavailable") ||
+        normalizedMessage.includes("please retry")
       ) {
         setVerificationMessage(
           "GenLayer could not evaluate the evidence reliably. Please retry."
@@ -544,7 +579,7 @@ function App() {
           <button className="walletButton" onClick={handleWalletButton}>
             <span className={wallet ? "walletDot connected" : "walletDot"} />
             {wallet ? shortenAddress(wallet) : "Connect Wallet"}
-            {wallet && <span className="walletChevron">⌄</span>}
+            {wallet && <span className="walletChevron">{"\u2304"}</span>}
           </button>
 
           {wallet && walletMenuOpen && (
@@ -623,7 +658,7 @@ function App() {
                   <p>Ethereum Sepolia</p>
                 </div>
 
-                <b>✓</b>
+                <b>{"\u2713"}</b>
               </div>
 
               <div className="flowLine" />
@@ -636,7 +671,7 @@ function App() {
                   <p>Live blockchain data</p>
                 </div>
 
-                <b>✓</b>
+                <b>{"\u2713"}</b>
               </div>
 
               <div className="flowLine" />
@@ -649,7 +684,7 @@ function App() {
                   <p>GenLayer validators</p>
                 </div>
 
-                <b>✓</b>
+                <b>{"\u2713"}</b>
               </div>
 
               <div className="flowLine" />
@@ -659,10 +694,10 @@ function App() {
 
                 <div>
                   <strong>Outcome unlocked</strong>
-                  <p>Participant eligible</p>
+                  <p>One-time outcome triggered</p>
                 </div>
 
-                <b>✓</b>
+                <b>{"\u2713"}</b>
               </div>
             </div>
 
@@ -853,7 +888,7 @@ function App() {
               <h3>Define</h3>
 
               <p>
-                A campaign creator defines the action, evidence source and
+                A campaign creator defines the action, verification requirement and
                 outcome.
               </p>
             </div>
@@ -883,8 +918,8 @@ function App() {
               <h3>Unlock</h3>
 
               <p>
-                Consensus creates a trusted PASS or FAIL that controls the
-                outcome.
+                Consensus creates a trusted PASS or FAIL and triggers the
+                one-time outcome on success.
               </p>
             </div>
           </div>
@@ -950,10 +985,10 @@ function App() {
                 <div>
                   <strong>Onchain proof campaign</strong>
                   <p>
-                    This MVP uses a live Ethereum Sepolia transaction as
-                    evidence. ProofFlow retrieves the transaction facts and
-                    GenLayer validators decide whether your requirement was
-                    satisfied.
+                    This MVP verifies participant-specific Ethereum Sepolia
+                    transaction proofs. Participants submit their own transaction,
+                    ProofFlow retrieves the live chain facts, and GenLayer
+                    validators decide whether your requirement was satisfied.
                   </p>
                 </div>
               </div>
@@ -1010,7 +1045,7 @@ function App() {
                     onChange={handleCampaignField}
                     disabled={creatorProcessing}
                   >
-                    <option value="sepolia">
+                    <option value="SEPOLIA">
                       Ethereum Sepolia
                     </option>
                   </select>
@@ -1028,23 +1063,6 @@ function App() {
                   />
                 </label>
 
-                <label className="creatorField fullWidth">
-                  <span>Evidence transaction hash</span>
-
-                  <input
-                    className="monospaceInput"
-                    name="transactionHash"
-                    value={campaignForm.transactionHash}
-                    onChange={handleCampaignField}
-                    placeholder="0x..."
-                    disabled={creatorProcessing}
-                  />
-
-                  <small>
-                    ProofFlow automatically converts this into a live evidence
-                    endpoint. The URL is not stored manually by the creator.
-                  </small>
-                </label>
               </div>
 
               {creatorStatus !== "idle" && (
@@ -1055,7 +1073,7 @@ function App() {
                     )}
 
                     {creatorStatus === "complete" && (
-                      <span className="creatorSuccessIcon">✓</span>
+                      <span className="creatorSuccessIcon">{"\u2713"}</span>
                     )}
 
                     <strong>{creatorMessage}</strong>
@@ -1180,7 +1198,7 @@ function App() {
                     : "progressStep"
                 }
               >
-                <span>{currentStep > 1 ? "✓" : "1"}</span>
+                <span>{currentStep > 1 ? "\u2713" : "1"}</span>
                 <small>Wallet</small>
               </div>
 
@@ -1199,7 +1217,7 @@ function App() {
                     : "progressStep"
                 }
               >
-                <span>{currentStep > 2 ? "✓" : "2"}</span>
+                <span>{currentStep > 2 ? "\u2713" : "2"}</span>
                 <small>Submit</small>
               </div>
 
@@ -1218,7 +1236,7 @@ function App() {
                     : "progressStep"
                 }
               >
-                <span>{currentStep > 3 ? "✓" : "3"}</span>
+                <span>{currentStep > 3 ? "\u2713" : "3"}</span>
                 <small>Consensus</small>
               </div>
 
@@ -1237,7 +1255,7 @@ function App() {
                     : "progressStep"
                 }
               >
-                <span>{currentStep >= 4 ? "✓" : "4"}</span>
+                <span>{currentStep >= 4 ? "\u2713" : "4"}</span>
                 <small>Result</small>
               </div>
             </div>
@@ -1246,10 +1264,10 @@ function App() {
               {!hasCompletedResult && (
                 <>
                   <p className="verificationCopy">
-                    Enter the wallet that completed the required action.
-                    ProofFlow will retrieve the campaign's live evidence and
-                    submit the verification to GenLayer validators for
-                    consensus.
+                    Enter the participant wallet and that participant's Sepolia
+                    transaction hash. ProofFlow derives the trusted evidence
+                    request and submits the live evidence to GenLayer validators
+                    for consensus.
                   </p>
 
                   <label className="walletField">
@@ -1264,6 +1282,18 @@ function App() {
                       disabled={isProcessing}
                     />
                   </label>
+
+                  <label className="walletField">
+                    <span>Sepolia transaction hash</span>
+
+                    <input
+                      className="monospaceInput"
+                      value={participantProof}
+                      onChange={(event) => setParticipantProof(event.target.value)}
+                      placeholder="0x..."
+                      disabled={isProcessing}
+                    />
+                  </label>
                 </>
               )}
 
@@ -1271,13 +1301,15 @@ function App() {
                 <div className="completedWallet">
                   <span>PARTICIPANT</span>
                   <strong>{participantWallet}</strong>
+                  <span>PROOF</span>
+                  <strong>{participantProof}</strong>
                 </div>
               )}
 
               <button
                 className="runVerificationButton"
                 onClick={handleVerify}
-                disabled={isProcessing || !participantWallet.trim()}
+                disabled={isProcessing || !participantWallet.trim() || !participantProof.trim()}
               >
                 {verificationStatus === "connecting"
                   ? "Connecting Wallet..."
@@ -1289,7 +1321,7 @@ function App() {
                         ? "Verify Again"
                         : verificationStatus === "error"
                           ? "Retry Verification"
-                          : "Verify with GenLayer"}
+                          : "Submit Proof"}
               </button>
 
               {verificationStatus !== "idle" && (
@@ -1304,7 +1336,7 @@ function App() {
                         }`}
                       >
                         <div className="resultSummaryIcon">
-                          {verificationResult.passed ? "✓" : "×"}
+                          {verificationResult.passed ? "\u2713" : "\u00D7"}
                         </div>
 
                         <div className="resultSummaryCopy">
@@ -1325,14 +1357,14 @@ function App() {
 
                         <div
                           className={
-                            outcomeEligible
+                            outcomeRecord?.triggered
                               ? "outcomeBadge eligible"
                               : "outcomeBadge notEligible"
                           }
                         >
-                          {outcomeEligible
-                            ? "ELIGIBLE"
-                            : "NOT ELIGIBLE"}
+                          {outcomeRecord?.triggered
+                            ? "OUTCOME TRIGGERED"
+                            : "NO OUTCOME"}
                         </div>
                       </div>
 
@@ -1346,6 +1378,19 @@ function App() {
                           <div className="resultDetailCard">
                             <span>EVIDENCE</span>
                             <p>{verificationResult.evidence_ref}</p>
+                          </div>
+                        )}
+
+                        {outcomeRecord?.found && (
+                          <div className="resultDetailCard">
+                            <span>OUTCOME TRIGGERED</span>
+                            <p>
+                              Outcome #{outcomeRecord.outcome_id}
+                              {" | "}
+                              {outcomeRecord.outcome_type}
+                              {" | "}
+                              {outcomeRecord.outcome_value}
+                            </p>
                           </div>
                         )}
                       </div>

@@ -2,7 +2,7 @@ import { createClient } from "genlayer-js";
 import { studionet } from "genlayer-js/chains";
 
 export const PROOFFLOW_CONTRACT =
-  "0xfC46FC2C0Cb8A93b8B653EDe3764ECe1e03D642D";
+  "0xe6C111eDE3C5a687304503011eff6e9289100B28";
 
 export const PROOFFLOW_EVIDENCE_WORKER =
   "https://proofflow-evidence.floptools.workers.dev";
@@ -20,41 +20,30 @@ export async function getCampaign(campaignId = 1) {
   });
 }
 
-/*
- * The deployed contract currently does not expose campaign_counter
- * as a public view method.
- *
- * Campaigns are therefore discovered sequentially through get_campaign().
- * Discovery stops when the first nonexistent campaign ID is reached.
- */
-export async function getCampaigns({
-  startId = 1,
-  maxCampaigns = 50,
-} = {}) {
+export async function getCampaignCount() {
+  return genlayerClient.readContract({
+    address: PROOFFLOW_CONTRACT,
+    functionName: "get_campaign_count",
+    args: [],
+    stateStatus: "accepted",
+  });
+}
+
+export async function getCampaigns() {
+  const rawCount = await getCampaignCount();
+  const count = Number(rawCount || 0);
+
+  if (!Number.isFinite(count) || count <= 0) {
+    return [];
+  }
+
   const campaigns = [];
 
-  for (
-    let campaignId = startId;
-    campaignId < startId + maxCampaigns;
-    campaignId += 1
-  ) {
-    try {
-      const campaign = await getCampaign(campaignId);
+  for (let campaignId = 1; campaignId <= count; campaignId += 1) {
+    const campaign = await getCampaign(campaignId);
 
-      if (!campaign) {
-        break;
-      }
-
+    if (campaign) {
       campaigns.push(campaign);
-    } catch (error) {
-      if (campaignId === startId && campaigns.length === 0) {
-        console.warn(
-          `No ProofFlow campaign found at ID ${campaignId}.`,
-          error
-        );
-      }
-
-      break;
     }
   }
 
@@ -104,33 +93,20 @@ export function disconnectGenLayerWallet() {
   };
 }
 
-export function buildOnchainEvidenceUrl({
-  transactionHash,
-  network = "sepolia",
-}) {
-  const tx = String(transactionHash || "").trim();
-  const selectedNetwork = String(network || "sepolia")
-    .trim()
-    .toLowerCase();
+export function normalizeSepoliaTransactionHash(transactionHash) {
+  let proof = String(transactionHash || "").trim().toLowerCase();
 
-  if (!/^0x[a-fA-F0-9]{64}$/.test(tx)) {
+  if (/^[a-f0-9]{64}$/.test(proof)) {
+    proof = `0x${proof}`;
+  }
+
+  if (!/^0x[a-f0-9]{64}$/.test(proof)) {
     throw new Error(
-      "Enter a valid transaction hash beginning with 0x and containing 64 hexadecimal characters."
+      "Enter a valid Sepolia transaction hash containing 64 hexadecimal characters."
     );
   }
 
-  if (selectedNetwork !== "sepolia") {
-    throw new Error(
-      "The current ProofFlow MVP supports Ethereum Sepolia evidence."
-    );
-  }
-
-  const params = new URLSearchParams({
-    tx,
-    network: selectedNetwork,
-  });
-
-  return `${PROOFFLOW_EVIDENCE_WORKER}/evidence?${params.toString()}`;
+  return proof;
 }
 
 export async function createCampaign(
@@ -140,7 +116,7 @@ export async function createCampaign(
     description,
     category = "ONCHAIN",
     requirement,
-    evidenceUrl,
+    network = "SEPOLIA",
     startTime = 0,
     endTime = 0,
     outcomeType = "ELIGIBILITY",
@@ -152,15 +128,35 @@ export async function createCampaign(
     throw new Error("Connect a wallet before creating a campaign.");
   }
 
+  const selectedCategory = String(category || "ONCHAIN")
+    .trim()
+    .toUpperCase();
+
+  const selectedNetwork = String(network || "SEPOLIA")
+    .trim()
+    .toUpperCase();
+
+  if (selectedCategory !== "ONCHAIN") {
+    throw new Error(
+      "The current ProofFlow MVP supports ONCHAIN campaigns."
+    );
+  }
+
+  if (selectedNetwork !== "SEPOLIA") {
+    throw new Error(
+      "The current ProofFlow MVP supports Ethereum Sepolia."
+    );
+  }
+
   return client.writeContract({
     address: PROOFFLOW_CONTRACT,
     functionName: "create_campaign",
     args: [
       String(title || "").trim(),
       String(description || "").trim(),
-      String(category || "ONCHAIN").trim().toUpperCase(),
+      selectedCategory,
       String(requirement || "").trim(),
-      String(evidenceUrl || "").trim(),
+      selectedNetwork,
       Number(startTime || 0),
       Number(endTime || 0),
       String(outcomeType || "ELIGIBILITY").trim().toUpperCase(),
@@ -173,14 +169,44 @@ export async function createCampaign(
 
 export async function verifyParticipant(
   client,
-  participant,
-  campaignId = 1
+  {
+    campaignId = 1,
+    participant,
+    proof,
+    verifiedAtHint = 0,
+  }
 ) {
+  if (!client) {
+    throw new Error("Connect a wallet before submitting proof.");
+  }
+
+  const participantAddress = String(participant || "").trim();
+
+  if (!/^0x[a-fA-F0-9]{40}$/.test(participantAddress)) {
+    throw new Error("Enter or connect a valid participant wallet address.");
+  }
+
+  const normalizedProof = normalizeSepoliaTransactionHash(proof);
+
   return client.writeContract({
     address: PROOFFLOW_CONTRACT,
     functionName: "verify_participant",
-    args: [campaignId, participant, 0],
+    args: [
+      Number(campaignId),
+      participantAddress,
+      normalizedProof,
+      Number(verifiedAtHint || 0),
+    ],
     value: 0n,
+  });
+}
+
+export async function getVerification(verificationId) {
+  return genlayerClient.readContract({
+    address: PROOFFLOW_CONTRACT,
+    functionName: "get_verification",
+    args: [verificationId],
+    stateStatus: "accepted",
   });
 }
 
@@ -196,14 +222,46 @@ export async function getLatestParticipantResult(
   });
 }
 
-export async function isOutcomeEligible(
+export async function getOutcome(outcomeId) {
+  return genlayerClient.readContract({
+    address: PROOFFLOW_CONTRACT,
+    functionName: "get_outcome",
+    args: [outcomeId],
+    stateStatus: "accepted",
+  });
+}
+
+export async function getParticipantOutcome(
   participant,
   campaignId = 1
 ) {
   return genlayerClient.readContract({
     address: PROOFFLOW_CONTRACT,
-    functionName: "is_outcome_eligible",
+    functionName: "get_participant_outcome",
     args: [participant, campaignId],
+    stateStatus: "accepted",
+  });
+}
+
+export async function isOutcomeTriggered(
+  participant,
+  campaignId = 1
+) {
+  return genlayerClient.readContract({
+    address: PROOFFLOW_CONTRACT,
+    functionName: "is_outcome_triggered",
+    args: [participant, campaignId],
+    stateStatus: "accepted",
+  });
+}
+
+export async function isProofUsed(proof, campaignId = 1) {
+  const normalizedProof = normalizeSepoliaTransactionHash(proof);
+
+  return genlayerClient.readContract({
+    address: PROOFFLOW_CONTRACT,
+    functionName: "is_proof_used",
+    args: [normalizedProof, campaignId],
     stateStatus: "accepted",
   });
 }
