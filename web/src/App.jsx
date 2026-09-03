@@ -11,9 +11,6 @@ import {
   verifyParticipant,
 } from "./genlayer";
 
-const DEFAULT_PARTICIPANT =
-  "0xe6ad325573eb0b6f8edc7ee5c54d3d6179bbf687";
-
 const EMPTY_CAMPAIGN_FORM = {
   title: "",
   description: "",
@@ -57,10 +54,6 @@ function App() {
 
   const [showVerification, setShowVerification] = useState(false);
   const [showCampaignCreator, setShowCampaignCreator] = useState(false);
-
-  const [participantWallet, setParticipantWallet] = useState(
-    DEFAULT_PARTICIPANT
-  );
 
   const [verificationStatus, setVerificationStatus] = useState("idle");
   const [verificationMessage, setVerificationMessage] = useState("");
@@ -258,11 +251,9 @@ function App() {
         throw new Error("Describe the action participants must prove.");
       }
 
-
       if (!outcomeValue) {
         throw new Error("Enter the outcome participants can unlock.");
       }
-
 
       setCreatorStatus("connecting");
       setCreatorMessage("Connecting wallet...");
@@ -371,9 +362,7 @@ function App() {
 
       const tx = await verifyParticipant(client, {
         campaignId: Number(selectedCampaign.campaign_id),
-        participant: participantWallet,
         proof: participantProof,
-        verifiedAtHint: 0,
       });
 
       const txHash = getTransactionHash(tx);
@@ -431,7 +420,7 @@ function App() {
 
       const readStoredResult = async () => {
         const storedResult = await getLatestParticipantResult(
-          participantWallet,
+          account,
           Number(selectedCampaign.campaign_id)
         );
 
@@ -443,7 +432,7 @@ function App() {
 
         if (storedResult?.passed) {
           const outcome = await getParticipantOutcome(
-            participantWallet,
+            account,
             Number(selectedCampaign.campaign_id)
           );
 
@@ -610,8 +599,8 @@ function App() {
 
             <p>
               ProofFlow lets organizations define verifiable actions and lets
-              participants prove completion using live evidence evaluated
-              through GenLayer validator consensus.
+              participants prove completion using independently sourced evidence
+              evaluated through GenLayer validator consensus.
             </p>
 
             <div className="heroActions">
@@ -668,7 +657,7 @@ function App() {
 
                 <div>
                   <strong>Evidence retrieved</strong>
-                  <p>Live blockchain data</p>
+                  <p>Independent blockchain sources</p>
                 </div>
 
                 <b>{"\u2713"}</b>
@@ -908,8 +897,8 @@ function App() {
               <h3>Verify</h3>
 
               <p>
-                GenLayer validators independently evaluate authoritative
-                evidence.
+                GenLayer validators compare independently sourced blockchain
+                evidence before reaching consensus.
               </p>
             </div>
 
@@ -986,9 +975,10 @@ function App() {
                   <strong>Onchain proof campaign</strong>
                   <p>
                     This MVP verifies participant-specific Ethereum Sepolia
-                    transaction proofs. Participants submit their own transaction,
-                    ProofFlow retrieves the live chain facts, and GenLayer
-                    validators decide whether your requirement was satisfied.
+                    transaction proofs. Participant identity is derived from the
+                    connected wallet, and GenLayer validators compare independent
+                    blockchain evidence before deciding whether the requirement
+                    was satisfied.
                   </p>
                 </div>
               </div>
@@ -1264,24 +1254,11 @@ function App() {
               {!hasCompletedResult && (
                 <>
                   <p className="verificationCopy">
-                    Enter the participant wallet and that participant's Sepolia
-                    transaction hash. ProofFlow derives the trusted evidence
-                    request and submits the live evidence to GenLayer validators
-                    for consensus.
+                    Submit your Sepolia transaction hash. Your participant identity
+                    is derived directly from the connected wallet by the ProofFlow
+                    Intelligent Contract, while validators compare independent
+                    blockchain evidence before reaching consensus.
                   </p>
-
-                  <label className="walletField">
-                    <span>Participant wallet</span>
-
-                    <input
-                      value={participantWallet}
-                      onChange={(event) =>
-                        setParticipantWallet(event.target.value)
-                      }
-                      placeholder="0x..."
-                      disabled={isProcessing}
-                    />
-                  </label>
 
                   <label className="walletField">
                     <span>Sepolia transaction hash</span>
@@ -1300,7 +1277,7 @@ function App() {
               {hasCompletedResult && (
                 <div className="completedWallet">
                   <span>PARTICIPANT</span>
-                  <strong>{participantWallet}</strong>
+                  <strong>{verificationResult?.participant || wallet}</strong>
                   <span>PROOF</span>
                   <strong>{participantProof}</strong>
                 </div>
@@ -1309,7 +1286,7 @@ function App() {
               <button
                 className="runVerificationButton"
                 onClick={handleVerify}
-                disabled={isProcessing || !participantWallet.trim() || !participantProof.trim()}
+                disabled={isProcessing || !participantProof.trim()}
               >
                 {verificationStatus === "connecting"
                   ? "Connecting Wallet..."

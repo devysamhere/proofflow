@@ -2,7 +2,7 @@ import { createClient } from "genlayer-js";
 import { studionet } from "genlayer-js/chains";
 
 export const PROOFFLOW_CONTRACT =
-  "0xe6C111eDE3C5a687304503011eff6e9289100B28";
+  "0xB3ADF46f4ebF6534F090358Eeee177e66910F36B";
 
 export const PROOFFLOW_EVIDENCE_WORKER =
   "https://proofflow-evidence.floptools.workers.dev";
@@ -171,19 +171,11 @@ export async function verifyParticipant(
   client,
   {
     campaignId = 1,
-    participant,
     proof,
-    verifiedAtHint = 0,
   }
 ) {
   if (!client) {
     throw new Error("Connect a wallet before submitting proof.");
-  }
-
-  const participantAddress = String(participant || "").trim();
-
-  if (!/^0x[a-fA-F0-9]{40}$/.test(participantAddress)) {
-    throw new Error("Enter or connect a valid participant wallet address.");
   }
 
   const normalizedProof = normalizeSepoliaTransactionHash(proof);
@@ -193,9 +185,7 @@ export async function verifyParticipant(
     functionName: "verify_participant",
     args: [
       Number(campaignId),
-      participantAddress,
       normalizedProof,
-      Number(verifiedAtHint || 0),
     ],
     value: 0n,
   });
@@ -261,7 +251,7 @@ export async function isProofUsed(proof, campaignId = 1) {
   return genlayerClient.readContract({
     address: PROOFFLOW_CONTRACT,
     functionName: "is_proof_used",
-    args: [normalizedProof, campaignId],
+    args: [campaignId, normalizedProof],
     stateStatus: "accepted",
   });
 }
