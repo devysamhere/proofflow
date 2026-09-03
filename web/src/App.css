@@ -20,17 +20,20 @@
 }
 
 .brandMark {
-  width: 38px;
-  height: 38px;
-  border-radius: 11px;
+  width: 42px;
+  height: 42px;
   display: grid;
   place-items: center;
-  font-weight: 900;
-  color: #ffffff;
-  background: linear-gradient(135deg, #7c5cff, #38d9b6);
-  box-shadow: 0 0 30px rgba(124, 92, 255, 0.28);
+  flex-shrink: 0;
 }
 
+.brandMark img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  border-radius: 11px;
+}
 .brand strong {
   display: block;
   font-size: 17px;

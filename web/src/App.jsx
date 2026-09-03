@@ -1,3 +1,4 @@
+import proofFlowLogo from "./assets/proofflow-logo.png";
 import { useEffect, useState } from "react";
 import "./App.css";
 import {
@@ -726,7 +727,9 @@ function App() {
     <div className="app">
       <header className="navbar">
         <div className="brand">
-          <div className="brandMark">P</div>
+          <div className="brandMark">
+  <img src={proofFlowLogo} alt="ProofFlow" />
+</div>
 
           <div>
             <strong>ProofFlow</strong>
@@ -1295,7 +1298,9 @@ function App() {
 
       <footer>
         <div className="brand footerBrand">
-          <div className="brandMark">P</div>
+          <div className="brandMark">
+  <img src={proofFlowLogo} alt="ProofFlow" />
+</div>
           <strong>ProofFlow</strong>
         </div>
 
