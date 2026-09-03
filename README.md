@@ -775,6 +775,23 @@ The frontend reads the campaign count and loads campaigns from ID `1` through th
 
 ProofFlow therefore does not require a centralized campaign database for campaign discovery.
 
+### Scalable Campaign Directory
+
+To keep the landing page clean as ProofFlow grows, the homepage displays only the **6 newest campaigns** rather than rendering the complete campaign catalogue.
+
+Users can access all campaigns through a dedicated **Campaign Directory**. The directory is displayed as a separate application view instead of expanding the campaign list inside the homepage.
+
+The Campaign Directory supports:
+
+- search by campaign information;
+- filtering by active or inactive status;
+- sorting from newest to oldest or oldest to newest;
+- progressive loading of campaigns 12 at a time.
+
+Selecting **Browse All Campaigns**, **Explore Campaigns**, or the **Campaigns** navigation item opens the Campaign Directory. Users can return to the main homepage using **Back to Home**.
+
+Campaign data remains contract-driven. The directory is a frontend scalability and navigation layer over the campaigns retrieved from the deployed ProofFlow Intelligent Contract.
+
 ---
 
 ## Campaign Administration
