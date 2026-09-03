@@ -1,10 +1,10 @@
 /**
  * ProofFlow Public Evidence Worker
- * v0.1.0
+ * v0.2.0
  *
  * Public Cloudflare Worker that:
  * 1. Accepts a transaction hash.
- * 2. Reads authoritative Ethereum RPC data.
+ * 2. Reads authoritative blockchain evidence.
  * 3. Extracts transaction facts.
  * 4. Decodes ERC20 Transfer events when present.
  * 5. Returns ProofFlow evidence JSON.
@@ -14,13 +14,14 @@
  * GenLayer validators evaluate the campaign requirement.
  */
 
-const VERSION = "0.1.0";
+const VERSION = "0.2.0";
 
 const NETWORKS = {
   sepolia: {
     name: "Ethereum Sepolia",
     chainId: 11155111,
-    rpcUrl: "https://ethereum-sepolia-rpc.publicnode.com",
+    evidenceApiUrl:
+      "https://api.routescan.io/v2/network/testnet/evm/11155111/etherscan/api",
   },
 
   ethereum: {
@@ -67,9 +68,14 @@ function jsonResponse(data, status = 200) {
     {
       status,
       headers: {
-        "Content-Type": "application/json; charset=utf-8",
-        "Access-Control-Allow-Origin": "*",
-        "Cache-Control": "no-store",
+        "Content-Type":
+          "application/json; charset=utf-8",
+
+        "Access-Control-Allow-Origin":
+          "*",
+
+        "Cache-Control":
+          "no-store",
       },
     }
   );
@@ -77,33 +83,158 @@ function jsonResponse(data, status = 200) {
 
 
 // ==========================================================
-// JSON RPC
+// ROUTESCAN / JSON-RPC
 // ==========================================================
 
-async function rpcRequest(network, method, params = []) {
-  const config = NETWORKS[network];
+async function routescanProxyRequest(
+  config,
+  method,
+  params = []
+) {
+  const url =
+    new URL(
+      config.evidenceApiUrl
+    );
 
-  if (!config) {
-    throw new Error(`Unsupported network: ${network}`);
+  url.searchParams.set(
+    "module",
+    "proxy"
+  );
+
+  url.searchParams.set(
+    "action",
+    method
+  );
+
+  if (
+    method ===
+      "eth_getTransactionByHash" ||
+    method ===
+      "eth_getTransactionReceipt"
+  ) {
+    url.searchParams.set(
+      "txhash",
+      params[0]
+    );
+
+  } else if (
+    method ===
+    "eth_getBlockByNumber"
+  ) {
+    url.searchParams.set(
+      "tag",
+      params[0]
+    );
+
+    url.searchParams.set(
+      "boolean",
+      String(
+        params[1] === true
+      )
+    );
+
+  } else if (
+    method ===
+    "eth_call"
+  ) {
+    const call =
+      params[0] || {};
+
+    url.searchParams.set(
+      "to",
+      call.to || ""
+    );
+
+    url.searchParams.set(
+      "data",
+      call.data || "0x"
+    );
+
+    url.searchParams.set(
+      "tag",
+      params[1] || "latest"
+    );
+
+  } else {
+    throw new Error(
+      `Unsupported Routescan proxy method: ${method}`
+    );
   }
 
-  const response = await fetch(
-    config.rpcUrl,
-    {
-      method: "POST",
+  const response =
+    await fetch(
+      url.toString(),
+      {
+        method: "GET",
 
-      headers: {
-        "Content-Type": "application/json",
-      },
+        headers: {
+          "Accept":
+            "application/json",
+        },
+      }
+    );
 
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        method,
-        params,
-      }),
-    }
-  );
+  if (!response.ok) {
+    throw new Error(
+      `Routescan HTTP error ${response.status}`
+    );
+  }
+
+  const payload =
+    await response.json();
+
+  if (payload.error) {
+    throw new Error(
+      payload.error.message ||
+      "Routescan returned an error"
+    );
+  }
+
+  return payload.result;
+}
+
+
+async function rpcRequest(
+  network,
+  method,
+  params = []
+) {
+  const config =
+    NETWORKS[network];
+
+  if (!config) {
+    throw new Error(
+      `Unsupported network: ${network}`
+    );
+  }
+
+  if (config.evidenceApiUrl) {
+    return await routescanProxyRequest(
+      config,
+      method,
+      params
+    );
+  }
+
+  const response =
+    await fetch(
+      config.rpcUrl,
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method,
+          params,
+        }),
+      }
+    );
 
   if (!response.ok) {
     throw new Error(
@@ -111,7 +242,8 @@ async function rpcRequest(network, method, params = []) {
     );
   }
 
-  const payload = await response.json();
+  const payload =
+    await response.json();
 
   if (payload.error) {
     throw new Error(
@@ -175,10 +307,11 @@ function getFunctionSelector(input) {
 
 function hexToUtf8(hex) {
   try {
-    const clean = hex.replace(
-      /^0x/,
-      ""
-    );
+    const clean =
+      hex.replace(
+        /^0x/,
+        ""
+      );
 
     let output = "";
 
@@ -187,25 +320,28 @@ function hexToUtf8(hex) {
       i < clean.length;
       i += 2
     ) {
-      const byte = parseInt(
-        clean.slice(
-          i,
-          i + 2
-        ),
-        16
-      );
+      const byte =
+        parseInt(
+          clean.slice(
+            i,
+            i + 2
+          ),
+          16
+        );
 
       if (
         byte !== 0 &&
         Number.isFinite(byte)
       ) {
-        output += String.fromCharCode(
-          byte
-        );
+        output +=
+          String.fromCharCode(
+            byte
+          );
       }
     }
 
     return output.trim();
+
   } catch {
     return "";
   }
@@ -221,32 +357,37 @@ function decodeAbiString(value) {
   }
 
   try {
-    const clean = value.replace(
-      /^0x/,
-      ""
-    );
+    const clean =
+      value.replace(
+        /^0x/,
+        ""
+      );
 
     // Dynamic ABI string
     if (clean.length >= 128) {
-      const lengthHex = clean.slice(
-        64,
-        128
-      );
+      const lengthHex =
+        clean.slice(
+          64,
+          128
+        );
 
-      const length = Number(
-        BigInt(
-          "0x" + lengthHex
-        )
-      );
+      const length =
+        Number(
+          BigInt(
+            "0x" + lengthHex
+          )
+        );
 
       const start = 128;
+
       const end =
         start + length * 2;
 
-      const textHex = clean.slice(
-        start,
-        end
-      );
+      const textHex =
+        clean.slice(
+          start,
+          end
+        );
 
       const decoded =
         hexToUtf8(
@@ -293,6 +434,7 @@ async function ethCall(
         "latest",
       ]
     );
+
   } catch {
     return "0x";
   }
@@ -334,12 +476,14 @@ async function getTokenMetadata(
       decimalsRaw &&
       decimalsRaw !== "0x"
     ) {
-      decimals = Number(
-        BigInt(
-          decimalsRaw
-        )
-      );
+      decimals =
+        Number(
+          BigInt(
+            decimalsRaw
+          )
+        );
     }
+
   } catch {
     decimals = 18;
   }
@@ -458,6 +602,7 @@ async function decodeTransferLogs(
         BigInt(
           log.data || "0x0"
         ).toString();
+
     } catch {
       rawAmount = "0";
     }
@@ -632,7 +777,9 @@ async function buildEvidence(
       "ONCHAIN_ACTION",
 
     source_type:
-      "LIVE_BLOCKCHAIN_RPC",
+      network === "sepolia"
+        ? "INDEPENDENT_EXPLORER_API"
+        : "LIVE_BLOCKCHAIN_RPC",
 
     network,
 
@@ -707,9 +854,12 @@ async function buildEvidence(
     evidence_sources: [
       {
         type:
-          "JSON_RPC",
+          config.evidenceApiUrl
+            ? "ROUTESCAN_EXPLORER_API"
+            : "JSON_RPC",
 
         url:
+          config.evidenceApiUrl ||
           config.rpcUrl,
 
         network,
@@ -776,6 +926,7 @@ export default {
       );
     }
 
+
     // ======================================================
     // ROOT
     // ======================================================
@@ -812,6 +963,7 @@ export default {
       });
     }
 
+
     // ======================================================
     // HEALTH
     // ======================================================
@@ -831,6 +983,7 @@ export default {
           VERSION,
       });
     }
+
 
     // ======================================================
     // EVIDENCE
