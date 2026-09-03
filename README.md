@@ -2,15 +2,16 @@
 
 **Verify actions. Trigger outcomes.**
 
-ProofFlow is a programmable proof-of-action platform powered by **GenLayer**. Campaign creators define a verifiable requirement and an outcome. Participants submit their own proof of action, and GenLayer validators independently evaluate authoritative evidence before reaching consensus on PASS or FAIL.
+ProofFlow is a programmable proof-of-action platform powered by **GenLayer**. Campaign creators define a verifiable requirement and an outcome. Participants submit proof of an action, and GenLayer validators evaluate independently sourced evidence before reaching consensus on PASS or FAIL.
 
-When verification passes, ProofFlow automatically creates a one-time outcome record for that participant and campaign.
+When verification passes, ProofFlow stores the verification result and automatically creates a one-time outcome record for that participant and campaign.
 
 ---
 
 ## Live App
 
 **ProofFlow:**
+
 https://proof-flow.pages.dev
 
 ---
@@ -25,9 +26,13 @@ https://github.com/devysamhere/proofflow
 
 **Network:** GenLayer Studionet
 
-**ProofFlow Intelligent Contract V2.1:**
+**ProofFlow Intelligent Contract V2.2:**
 
-`0xe6C111eDE3C5a687304503011eff6e9289100B28`
+`0xB3ADF46f4ebF6534F090358Eeee177e66910F36B`
+
+**Deployment Transaction:**
+
+`0x77bbc0748a1bde6bc96edd079191a83244d7cadccb37491e610d4f0921091192`
 
 **RPC:**
 
@@ -35,7 +40,7 @@ https://github.com/devysamhere/proofflow
 
 **Explorer:**
 
-https://explorer-studio.genlayer.com/address/0xe6C111eDE3C5a687304503011eff6e9289100B28
+https://explorer-studio.genlayer.com/address/0xB3ADF46f4ebF6534F090358Eeee177e66910F36B
 
 ---
 
@@ -53,15 +58,21 @@ Traditional approaches often depend on:
 
 ProofFlow separates **evidence retrieval** from **evidence judgment**.
 
-External evidence services provide facts. They do not decide PASS or FAIL.
+External evidence providers supply objective facts. They do not decide PASS or FAIL.
 
 The final verification decision is made through a **GenLayer Intelligent Contract** and validator consensus.
 
 ---
 
-## V2.1 Verification Model
+## V2.2 Verification Model
 
-ProofFlow V2.1 changes the verification model so that evidence is participant-specific.
+ProofFlow V2.2 strengthens the evidence trust boundary and participant identity model.
+
+The V2.2 architecture introduces three important changes:
+
+1. **Independent evidence paths** — validators compare blockchain facts obtained through separate providers instead of relying on one mutable evidence response.
+2. **Contract-derived participant identity** — the participant is derived from `gl.message.origin_address` rather than supplied manually by the user.
+3. **Contract-derived verification timing** — verification timing is derived during contract execution rather than supplied by the frontend.
 
 The campaign creator defines:
 
@@ -76,14 +87,102 @@ The campaign creator defines:
 
 The creator does **not** provide a participant transaction or arbitrary evidence URL.
 
-When a participant verifies a campaign, the participant supplies:
+When a participant verifies a campaign, the participant supplies only:
 
-- their wallet address;
 - their Ethereum Sepolia transaction hash.
 
-The Intelligent Contract validates the proof format and derives the trusted evidence endpoint itself.
+The participant's identity is bound to the transaction origin by the Intelligent Contract.
 
-This prevents a campaign creator or participant from substituting an arbitrary evidence source.
+---
+
+## V2.2 Evidence Architecture
+
+ProofFlow V2.2 uses two independent evidence paths.
+
+```text
+                        PARTICIPANT
+                             |
+                             | Sepolia transaction hash
+                             v
+                    PROOFFLOW CONTRACT
+                             |
+              +--------------+--------------+
+              |                             |
+              v                             v
+      ProofFlow Evidence Worker      Direct Validator Request
+              |                             |
+              v                             v
+          Routescan                     Blockscout
+              |                             |
+              +--------------+--------------+
+                             |
+                             v
+                    GenLayer Validators
+                             |
+                             v
+                  Compare Objective Facts
+                             |
+                             v
+                       Consensus
+                             |
+                      +------+------+
+                      |             |
+                      v             v
+                    FAIL           PASS
+                                    |
+                                    v
+                           Verification Stored
+                                    |
+                                    v
+                         One-Time Outcome Triggered
+```
+
+### Evidence Path A — ProofFlow Worker
+
+The Intelligent Contract derives the ProofFlow evidence URL internally:
+
+```text
+https://proofflow-evidence.floptools.workers.dev/evidence?tx=<TRANSACTION_HASH>&network=sepolia
+```
+
+For Ethereum Sepolia, the Worker retrieves blockchain data through the **Routescan API** and normalizes relevant transaction facts.
+
+### Evidence Path B — Independent Blockscout Request
+
+The Intelligent Contract independently derives a second evidence URL:
+
+```text
+https://eth-sepolia.blockscout.com/api/v2/transactions/<TRANSACTION_HASH>
+```
+
+GenLayer validators therefore receive evidence from a separate provider path that does not pass through the ProofFlow Worker.
+
+Validators compare the objective facts returned by both sources before evaluating the campaign requirement.
+
+---
+
+## Evidence Trust Boundary
+
+V2.2 specifically reduces dependence on a single mutable evidence source.
+
+The architecture is:
+
+```text
+Path A:
+ProofFlow Contract
+-> ProofFlow Worker
+-> Routescan
+
+Path B:
+ProofFlow Contract
+-> Blockscout
+```
+
+The two paths are independently queried.
+
+The ProofFlow Worker remains an evidence adapter. It does **not** decide whether a participant passes or fails.
+
+GenLayer validator consensus remains the decision layer.
 
 ---
 
@@ -99,32 +198,40 @@ Requirement + outcome stored on GenLayer
 Participant completes action
         |
         v
-Participant submits wallet + Sepolia transaction hash
+Participant submits Sepolia transaction hash
         |
         v
-ProofFlow contract derives trusted evidence URL
+Participant identity derived from transaction origin
         |
         v
-Evidence worker retrieves and normalizes blockchain facts
+Verification timing derived during contract execution
         |
         v
-Independent GenLayer validators evaluate requirement
+Contract derives both evidence requests
         |
-        v
-Consensus
-        |
-        v
-PASS / FAIL
-        |
-        +----------------------+
-        |                      |
-        v                      v
-      FAIL                    PASS
-        |                      |
-        v                      v
-Verification stored     Verification stored
-                               |
-                               v
+        +----------------------------+
+        |                            |
+        v                            v
+Worker -> Routescan            Blockscout
+        |                            |
+        +-------------+--------------+
+                      |
+                      v
+          GenLayer validators compare evidence
+                      |
+                      v
+                   Consensus
+                      |
+               +------+------+
+               |             |
+               v             v
+             FAIL           PASS
+               |             |
+               v             v
+      Verification       Verification
+         stored             stored
+                              |
+                              v
                     One-time outcome triggered
 ```
 
@@ -141,13 +248,13 @@ For the current MVP, the supported configuration is:
 
 A creator can define a human-readable requirement such as:
 
-> Participant must have successfully transferred at least 0.1 Rel ERC20 tokens on Sepolia, and the transfer must originate from the participant wallet.
+> Participant must successfully send at least 0.001 ETH on Ethereum Sepolia from their own wallet.
 
-A campaign stores the requirement and the configured outcome. It does not store a participant proof.
+A campaign stores the requirement and configured outcome. It does not store a participant proof.
 
 ### Campaign Record
 
-The V2.1 contract stores:
+The V2.2 contract stores:
 
 ```text
 campaign_id
@@ -174,66 +281,85 @@ Campaigns are active immediately after creation unless later paused by the creat
 A participant selects a campaign and submits:
 
 ```text
-participant wallet
-+
 Sepolia transaction hash
 ```
 
-The contract normalizes and validates the transaction hash before verification.
+The frontend does **not** ask the participant to manually enter a wallet address.
 
-The submitted proof must be a 32-byte hexadecimal transaction hash:
+The Intelligent Contract derives the participant from:
+
+```text
+gl.message.origin_address
+```
+
+This binds the verification attempt to the wallet that originated the GenLayer transaction.
+
+The contract normalizes and validates the submitted transaction hash before verification.
+
+A proof must represent a 32-byte hexadecimal transaction hash:
 
 ```text
 0x + 64 hexadecimal characters
 ```
 
-A 64-character hash without the `0x` prefix is normalized automatically by the contract.
+A 64-character hash without the `0x` prefix is also normalized by the contract.
 
 ---
 
-## Contract-Controlled Evidence
+## Contract-Derived Verification Context
 
-ProofFlow V2.1 uses a trusted evidence base URL defined inside the Intelligent Contract:
+V2.2 removes participant-controlled identity and verification-time parameters from `verify_participant`.
 
-```text
-https://proofflow-evidence.floptools.workers.dev/evidence
-```
-
-For a submitted transaction hash, the contract derives:
+The verification method is:
 
 ```text
-https://proofflow-evidence.floptools.workers.dev/evidence?tx=<TRANSACTION_HASH>&network=sepolia
+verify_participant(
+    campaign_id,
+    proof
+)
 ```
 
-The participant therefore submits a proof, not an evidence URL.
+During execution, the contract derives:
 
-The evidence service retrieves and normalizes blockchain facts. It does **not** determine whether the campaign passed.
+```text
+participant = gl.message.origin_address
+verification_time = contract execution time
+```
 
-That decision remains with GenLayer.
+The participant therefore cannot submit an arbitrary wallet address as the identity being verified.
+
+Campaign time-window checks also use the internally derived verification time.
 
 ---
 
 ## Live Evidence Service
 
-**Worker:**
+**ProofFlow Worker:**
 
 https://proofflow-evidence.floptools.workers.dev
 
-For the current Ethereum Sepolia flow, normalized evidence may include:
+For Ethereum Sepolia, the Worker uses the Routescan explorer API as its blockchain evidence provider.
 
+Normalized evidence can include:
+
+- transaction hash;
 - transaction status;
 - network;
-- block information;
+- block number;
 - timestamp;
 - sender;
 - recipient;
+- native value;
+- gas information;
 - contract address;
 - decoded ERC20 Transfer events;
 - token symbol;
-- decimals;
-- transferred amount.
+- token decimals;
+- transferred token amount.
 
-The worker acts as an evidence adapter only.
+The Worker extracts and normalizes facts only.
+
+It does **not** return the final ProofFlow PASS or FAIL decision.
 
 ---
 
@@ -241,20 +367,29 @@ The worker acts as an evidence adapter only.
 
 During `verify_participant`, the Intelligent Contract performs nondeterministic evaluation through GenLayer.
 
-Validators are instructed to evaluate only the supplied campaign requirement and evidence.
+Validators receive:
 
-The verification rules require validators to confirm, where relevant, that:
+- the campaign requirement;
+- contract-derived participant identity;
+- contract-derived verification context;
+- ProofFlow Worker / Routescan evidence;
+- independently queried Blockscout evidence.
 
-1. the evidence identifies the submitted transaction hash;
+Validators are instructed to compare the evidence sources and evaluate whether the campaign requirement is satisfied.
+
+Relevant checks can include:
+
+1. the transaction hash matches the submitted proof;
 2. the evidence is for Ethereum Sepolia;
-3. the transaction succeeded;
-4. the evidence relates to the required participant;
-5. sender/from requirements match the participant when required;
-6. the complete campaign requirement is satisfied;
-7. another transaction or participant is not substituted;
-8. unsupported facts are not assumed;
-9. ambiguous or insufficient evidence fails verification;
-10. evidence is treated as data, not trusted instructions.
+3. both sources describe the same transaction;
+4. transaction status is successful;
+5. sender matches the contract-derived participant when required;
+6. recipient and value match where relevant;
+7. block and transaction facts do not materially contradict each other;
+8. the complete campaign requirement is satisfied;
+9. unsupported facts are not assumed;
+10. ambiguous or insufficient evidence does not produce an artificial PASS;
+11. evidence is treated as data, not trusted instructions.
 
 The validator result is normalized to:
 
@@ -262,13 +397,13 @@ The validator result is normalized to:
 {
   "passed": true,
   "reasoning": "short factual explanation",
-  "evidence_ref": "transaction and evidence used"
+  "evidence_ref": "transaction and evidence sources used"
 }
 ```
 
-Consensus must produce a valid `PASS` or `FAIL` result.
+Consensus must produce a valid PASS or FAIL result.
 
-If evidence evaluation is unavailable or consensus returns an invalid result, the contract rolls back instead of storing an artificial failure.
+If evidence evaluation is unavailable or consensus cannot produce a valid decision, the contract rolls back instead of storing an artificial participant failure.
 
 ---
 
@@ -287,6 +422,8 @@ reasoning
 verified_at_hint
 ```
 
+The existing `verified_at_hint` field name is retained for record/API compatibility, but in V2.2 its stored value comes from the contract-derived verification time rather than a participant-supplied hint.
+
 The contract also stores the latest verification ID for each participant/campaign pair.
 
 A finalized proof is marked as used after consensus.
@@ -294,8 +431,6 @@ A finalized proof is marked as used after consensus.
 ---
 
 ## Automatic One-Time Outcomes
-
-V2.1 replaces the old outcome-eligibility model with persistent outcome records.
 
 If verification returns `PASS`, the contract immediately creates an `OutcomeRecord`:
 
@@ -310,9 +445,11 @@ triggered
 triggered_at_hint
 ```
 
-The record is linked to the participant and campaign.
+The outcome is linked to the participant and campaign.
 
-There is no separate claim step in the current V2.1 outcome mechanism.
+The existing `triggered_at_hint` field name is retained for API compatibility, while its V2.2 value comes from the internally derived verification time.
+
+There is no separate claim step in the current outcome mechanism.
 
 A successful verification therefore means:
 
@@ -328,7 +465,7 @@ one-time outcome triggered
 
 ## Replay Protection
 
-ProofFlow V2.1 implements two replay protections.
+ProofFlow implements two replay protections.
 
 ### Participant Outcome Replay Protection
 
@@ -340,7 +477,7 @@ If so, verification rolls back with:
 outcome already triggered for participant
 ```
 
-This prevents the same participant from repeatedly triggering the campaign outcome.
+This prevents the same participant from repeatedly triggering a campaign outcome.
 
 ### Proof Replay Protection
 
@@ -352,8 +489,6 @@ If a proof has already been consumed for that campaign, verification rolls back 
 proof already used for this campaign
 ```
 
-This prevents the same transaction from being reused by another participant or resubmitted to the same campaign.
-
 Proof usage is scoped by:
 
 ```text
@@ -362,11 +497,15 @@ campaign_id + transaction_hash
 
 ---
 
-## Tested V2.1 Campaign
+## V2.2 End-to-End Validation
 
-**Campaign ID:** `1`
+ProofFlow V2.2 has been tested end to end using a real Ethereum Sepolia transaction.
 
-**Campaign:** ProofFlow ERC20 Transfer Challenge
+### Tested Campaign
+
+**Campaign ID:** `2`
+
+**Campaign:** ProofFlow V2.2 Sepolia ETH Transfer
 
 **Category:** `ONCHAIN`
 
@@ -374,49 +513,117 @@ campaign_id + transaction_hash
 
 **Requirement:**
 
-> Participant must have successfully transferred at least 0.1 Rel ERC20 tokens on Sepolia, and the transfer must originate from the participant wallet.
+> Participant must successfully send at least 0.001 ETH on Ethereum Sepolia from their own wallet.
 
 **Outcome Type:** `ELIGIBILITY`
 
 **Outcome Value:** `PROOFFLOW_VERIFIED`
 
-### Verified Participant
+### Participant
 
 ```text
-0xe6ad325573eb0b6f8edc7ee5c54d3d6179bbf687
+0x24199034c9ceDe510B35F37471D553f25C84e9eB
 ```
 
-### Verified Proof
+The participant was derived from the GenLayer transaction origin rather than supplied as a verification argument.
+
+### Sepolia Proof
 
 ```text
-0x07ea8a8ac3eebdfd3382c49998ccb9dcdce7c6add97f9dfc5c0690dbe6bfe9ef
+0x6df19ef3aaf295214a2ba1306d03a83b2cdb4df5768bb81075dfc41708354435
 ```
 
-GenLayer verified a successful transfer of:
+The Sepolia transaction successfully sent:
 
 ```text
-0.122226 Rel
+0.001 ETH
 ```
 
-against the required minimum:
+### Independent Evidence Result
+
+GenLayer validators compared evidence from:
 
 ```text
-0.1 Rel
-```
-
-The result was `PASS`, and the campaign outcome was triggered.
-
-The frontend also successfully tested both replay-protection paths:
-
-```text
-proof already used for this campaign
+ProofFlow Worker -> Routescan
 ```
 
 and:
 
 ```text
-outcome already triggered for participant
+Blockscout Sepolia API
 ```
+
+The sources agreed on the relevant objective transaction facts, including:
+
+- transaction hash;
+- participant/sender;
+- recipient;
+- native ETH value;
+- successful status;
+- block number;
+- gas information.
+
+The verification reached consensus with:
+
+```text
+PASS
+```
+
+The verification was persisted as:
+
+```text
+Verification ID: 1
+```
+
+The configured campaign outcome was automatically triggered as:
+
+```text
+Outcome ID: 1
+Triggered: true
+```
+
+A subsequent read of `is_outcome_triggered` returned:
+
+```text
+true
+```
+
+This validates the complete V2.2 flow:
+
+```text
+Real Sepolia action
+-> contract-derived participant
+-> independently sourced evidence
+-> GenLayer consensus
+-> PASS
+-> verification persisted
+-> one-time outcome triggered
+```
+
+---
+
+## Browser V2.2 Validation
+
+The V2.2 browser frontend has also been tested against the deployed V2.2 Intelligent Contract.
+
+The frontend:
+
+- loads campaigns from the new V2.2 deployment;
+- requests only the Sepolia transaction hash;
+- does not request a participant wallet manually;
+- submits the new `verify_participant(campaign_id, proof)` call;
+- uses the connected account for participant-specific result reads;
+- retains the Wallet -> Submit -> Consensus -> Result flow;
+- detects finalized contract rollbacks;
+- surfaces replay-protection errors correctly.
+
+After the successful Campaign #2 outcome had already been triggered during the initial end-to-end test, submitting the same verification from the browser correctly surfaced:
+
+```text
+Outcome Already Triggered - this participant has already completed this campaign successfully.
+```
+
+This confirms the browser is communicating with the V2.2 contract and correctly displaying contract-level replay protection.
 
 ---
 
@@ -429,14 +636,15 @@ The ProofFlow interface is built with:
 - `genlayer-js`;
 - browser wallet integration.
 
-The current frontend supports:
+The V2.2 frontend supports:
 
 - connect a compatible browser wallet;
 - display and locally disconnect the connected wallet;
 - create ONCHAIN campaigns;
 - dynamically load campaigns using `get_campaign_count`;
 - view campaign requirements and outcomes;
-- submit participant wallet + Sepolia transaction proof;
+- submit a Sepolia transaction proof;
+- derive participant identity from the connected transaction origin rather than manual input;
 - track Wallet -> Submit -> Consensus -> Result;
 - display PASS / FAIL;
 - display validator reasoning;
@@ -458,7 +666,7 @@ ProofFlow does not automatically interpret a receipt-wait timeout as a failed ve
 
 If the SDK receipt wait times out, the frontend checks the contract for the participant's stored verification result and can continue polling briefly for finalized state.
 
-V2.1 also distinguishes a timeout from a contract rollback.
+ProofFlow also distinguishes a timeout from a contract rollback.
 
 A finalized receipt whose leader result contains:
 
@@ -468,13 +676,13 @@ status: rollback
 
 is surfaced as the actual contract error instead of being mistaken for a missing verification result.
 
-This is required for clear replay-protection UX.
+This is particularly important for replay-protection UX.
 
 ---
 
 ## Intelligent Contract Interface
 
-The deployed V2.1 contract exposes:
+The deployed V2.2 contract exposes:
 
 ```text
 create_campaign(
@@ -494,23 +702,28 @@ get_campaign(campaign_id)
 
 get_campaign_count()
 
-set_campaign_active(campaign_id, active)
+set_campaign_active(
+    campaign_id,
+    active
+)
 
 verify_participant(
     campaign_id,
-    participant,
-    proof,
-    verified_at_hint
+    proof
 )
 
-get_verification(verification_id)
+get_verification(
+    verification_id
+)
 
 get_latest_participant_result(
     participant,
     campaign_id
 )
 
-get_outcome(outcome_id)
+get_outcome(
+    outcome_id
+)
 
 get_participant_outcome(
     participant,
@@ -528,21 +741,39 @@ is_proof_used(
 )
 ```
 
-The old V1 `is_outcome_eligible` interface is not part of V2.1.
+The critical V2.2 verification change is:
+
+```text
+V2.1:
+verify_participant(
+    campaign_id,
+    participant,
+    proof,
+    verified_at_hint
+)
+
+V2.2:
+verify_participant(
+    campaign_id,
+    proof
+)
+```
+
+Participant identity and verification timing are no longer supplied by the participant.
 
 ---
 
 ## Campaign Discovery
 
-V2.1 exposes:
+ProofFlow exposes:
 
 ```text
 get_campaign_count()
 ```
 
-The frontend reads the campaign count and then loads campaigns from ID `1` through the current count.
+The frontend reads the campaign count and loads campaigns from ID `1` through the current count.
 
-ProofFlow therefore does not need a centralized campaign database or the previous contiguous-ID probing workaround.
+ProofFlow therefore does not require a centralized campaign database for campaign discovery.
 
 ---
 
@@ -558,35 +789,47 @@ This allows a campaign creator to activate or pause their own campaign.
 
 Verification rejects inactive campaigns.
 
-Campaign verification also respects optional `start_time` and `end_time` values when they are configured.
+Campaign verification also respects optional `start_time` and `end_time` values when configured.
 
 ---
 
 ## Trust Model
 
-ProofFlow separates three trust responsibilities.
+ProofFlow V2.2 separates the verification system into distinct responsibilities.
 
-### Evidence Source
+### Blockchain Evidence Providers
 
-Answers:
+Routescan and Blockscout answer:
 
-> What facts exist?
+> What objective blockchain facts exist for this transaction?
 
-For the current MVP, this is the Ethereum Sepolia evidence worker.
+They do not decide the campaign result.
 
 ### ProofFlow Evidence Adapter
 
-Retrieves and normalizes authoritative blockchain facts into a format validators can inspect.
+The Cloudflare Worker retrieves and normalizes blockchain facts from Routescan into a validator-readable format.
 
 It does not decide PASS or FAIL.
 
-### GenLayer Intelligent Contract
+### ProofFlow Intelligent Contract
 
-Answers:
+The contract:
 
-> Does this participant-specific evidence satisfy the campaign requirement?
+- derives participant identity;
+- derives verification timing;
+- derives trusted evidence URLs;
+- coordinates evidence evaluation;
+- persists finalized verification state;
+- enforces replay protection;
+- triggers successful outcomes.
 
-GenLayer is the trust-critical decision layer.
+### GenLayer Validators
+
+GenLayer validators answer:
+
+> Do the independently sourced facts satisfy this campaign's requirement for this contract-derived participant?
+
+GenLayer consensus is the final verification decision layer.
 
 ---
 
@@ -594,9 +837,9 @@ GenLayer is the trust-critical decision layer.
 
 Evidence returned from external sources is treated as **data**, not trusted instructions.
 
-The contract explicitly instructs validators to ignore commands, instructions, or prompt-injection attempts contained inside evidence.
+The contract instructs validators to ignore commands, instructions, or prompt-injection attempts contained inside evidence.
 
-Verification should rely only on facts relevant to the campaign requirement.
+Verification should rely only on objective facts relevant to the campaign requirement.
 
 ---
 
@@ -606,25 +849,25 @@ ProofFlow distinguishes a genuine failed requirement from an unavailable verific
 
 ### FAIL
 
-A verification is stored as `FAIL` when validators successfully evaluate the supplied evidence and consensus determines that the requirement was not satisfied.
+A verification is stored as `FAIL` when validators successfully evaluate the evidence and consensus determines that the requirement was not satisfied.
 
 ### ERROR / Rollback
 
-If evidence cannot be fetched, model output cannot be interpreted, or consensus does not produce a valid decision, the contract rolls back.
+If evidence cannot be fetched, model output cannot be interpreted, consensus cannot produce a valid decision, replay protection is triggered, or another contract requirement fails, the transaction rolls back.
 
-For example:
+For an unavailable evaluation, for example:
 
 ```text
 verification evaluation unavailable; please retry
 ```
 
-Infrastructure failure should therefore not be stored as a participant failure.
+Infrastructure failure is therefore not silently stored as a participant failure.
 
 ---
 
 ## Supported Category and Network
 
-The current V2.1 MVP supports:
+The current V2.2 MVP supports:
 
 ```text
 Category: ONCHAIN
@@ -636,7 +879,7 @@ Other categories remain future extensions.
 Potential future verification categories include:
 
 - developer activity;
-- GitHub contributions;
+- repository contributions;
 - real-world API-backed milestones;
 - educational completion;
 - public records;
@@ -658,9 +901,6 @@ proofflow/
 |
 +-- contracts/
 |   +-- proofflow.py
-|
-+-- docs/
-|   +-- ARCHITECTURE.md
 |
 +-- web/
 |   +-- ProofFlow React frontend
@@ -689,22 +929,30 @@ Create a production build with:
 npm run build
 ```
 
-The current V2.1 frontend production build has been validated successfully with Vite.
+The V2.2 production frontend build has been validated successfully with Vite 8.2.2.
 
 ---
 
-## Current V2.1 Status
+## Current V2.2 Status
 
 Working:
 
-- [x] GenLayer Intelligent Contract V2.1
+- [x] GenLayer Intelligent Contract V2.2
+- [x] V2.2 contract deployed to GenLayer Studionet
 - [x] Campaign creation
 - [x] Campaign retrieval
 - [x] Native campaign count
 - [x] Campaign activation state
 - [x] Ethereum Sepolia proof submission
-- [x] Contract-derived trusted evidence URL
+- [x] Contract-derived participant identity
+- [x] Contract-derived verification timing
+- [x] Contract-derived evidence URLs
+- [x] Independent evidence paths
+- [x] ProofFlow Worker -> Routescan evidence
+- [x] Direct Blockscout evidence
+- [x] Cross-source evidence comparison
 - [x] Public Cloudflare evidence service
+- [x] Native ETH evidence validation
 - [x] ERC20 evidence interpretation
 - [x] GenLayer nondeterministic evaluation
 - [x] Validator consensus
@@ -718,11 +966,57 @@ Working:
 - [x] Browser wallet integration
 - [x] Browser campaign creator
 - [x] Dynamic campaign discovery
-- [x] Participant proof input
+- [x] Transaction-hash-only participant verification UI
 - [x] Consensus/result modal UX
 - [x] Receipt-timeout recovery
 - [x] Contract rollback detection in finalized receipts
+- [x] Browser replay-protection validation
+- [x] End-to-end real Sepolia validation
 - [x] Local production build validation
+
+---
+
+## V2.2 Improvement
+
+The main V2.2 architectural improvement is the removal of two important single-party trust assumptions.
+
+### Before
+
+```text
+Participant supplied wallet identity
++
+Validators relied on one normalized evidence path
+```
+
+### V2.2
+
+```text
+Participant identity derived by contract
++
+Verification timing derived during execution
++
+Evidence Path A: Worker -> Routescan
++
+Evidence Path B: Direct Blockscout
++
+GenLayer validators compare both
+```
+
+This creates a stronger relationship between:
+
+```text
+Transaction Origin
++
+Participant Identity
++
+Independent Evidence
++
+Campaign Requirement
++
+Validator Consensus
++
+Outcome
+```
 
 ---
 
@@ -739,7 +1033,7 @@ Requirement
 +
 Participant Proof
 +
-Authoritative Evidence
+Independent Evidence
 +
 GenLayer Consensus
 +
@@ -767,6 +1061,6 @@ Instead of every application operating its own centralized verification authorit
 
 ## Built for GenLayer
 
-ProofFlow demonstrates how GenLayer Intelligent Contracts can act as a programmable consensus layer between **participant-specific evidence** and **digital outcomes**.
+ProofFlow demonstrates how GenLayer Intelligent Contracts can act as a programmable consensus layer between **contract-bound participant identity**, **independently sourced evidence**, and **digital outcomes**.
 
 **Verify actions. Trigger outcomes.**
