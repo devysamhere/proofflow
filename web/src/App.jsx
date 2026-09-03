@@ -11,9 +11,6 @@ import {
   verifyParticipant,
 } from "./genlayer";
 
-const DEFAULT_PARTICIPANT =
-  "0xe6ad325573eb0b6f8edc7ee5c54d3d6179bbf687";
-
 const EMPTY_CAMPAIGN_FORM = {
   title: "",
   description: "",
@@ -58,10 +55,6 @@ function App() {
   const [showVerification, setShowVerification] = useState(false);
   const [showCampaignCreator, setShowCampaignCreator] = useState(false);
 
-  const [participantWallet, setParticipantWallet] = useState(
-    DEFAULT_PARTICIPANT
-  );
-
   const [verificationStatus, setVerificationStatus] = useState("idle");
   const [verificationMessage, setVerificationMessage] = useState("");
   const [verificationResult, setVerificationResult] = useState(null);
@@ -73,6 +66,12 @@ function App() {
   const [creatorStatus, setCreatorStatus] = useState("idle");
   const [creatorMessage, setCreatorMessage] = useState("");
   const [creatorTx, setCreatorTx] = useState("");
+
+  const [showCampaignDirectory, setShowCampaignDirectory] = useState(false);
+  const [campaignSearch, setCampaignSearch] = useState("");
+  const [campaignStatus, setCampaignStatus] = useState("ALL");
+  const [campaignSort, setCampaignSort] = useState("NEWEST");
+  const [visibleCampaignCount, setVisibleCampaignCount] = useState(12);
 
   const loadCampaigns = async () => {
     try {
@@ -172,6 +171,10 @@ function App() {
     creatorStatus,
   ]);
 
+  useEffect(() => {
+    setVisibleCampaignCount(12);
+  }, [campaignSearch, campaignStatus, campaignSort]);
+
   const connectWallet = async () => {
     if (!window.ethereum) {
       alert(
@@ -258,11 +261,9 @@ function App() {
         throw new Error("Describe the action participants must prove.");
       }
 
-
       if (!outcomeValue) {
         throw new Error("Enter the outcome participants can unlock.");
       }
-
 
       setCreatorStatus("connecting");
       setCreatorMessage("Connecting wallet...");
@@ -371,9 +372,7 @@ function App() {
 
       const tx = await verifyParticipant(client, {
         campaignId: Number(selectedCampaign.campaign_id),
-        participant: participantWallet,
         proof: participantProof,
-        verifiedAtHint: 0,
       });
 
       const txHash = getTransactionHash(tx);
@@ -416,7 +415,11 @@ function App() {
             error?.message || error || ""
           ).toLowerCase();
 
-          if (!receiptErrorMessage.includes("timed out waiting for transaction")) {
+          if (
+            !receiptErrorMessage.includes(
+              "timed out waiting for transaction"
+            )
+          ) {
             throw error;
           }
 
@@ -431,7 +434,7 @@ function App() {
 
       const readStoredResult = async () => {
         const storedResult = await getLatestParticipantResult(
-          participantWallet,
+          account,
           Number(selectedCampaign.campaign_id)
         );
 
@@ -443,7 +446,7 @@ function App() {
 
         if (storedResult?.passed) {
           const outcome = await getParticipantOutcome(
-            participantWallet,
+            account,
             Number(selectedCampaign.campaign_id)
           );
 
@@ -497,7 +500,9 @@ function App() {
             : "Verification passed."
         );
       } else {
-        setVerificationMessage("Verification completed but did not pass.");
+        setVerificationMessage(
+          "Verification completed but did not pass."
+        );
       }
     } catch (error) {
       console.error("Verification failed:", error);
@@ -509,11 +514,17 @@ function App() {
 
       const normalizedMessage = message.toLowerCase();
 
-      if (normalizedMessage.includes("outcome already triggered for participant")) {
+      if (
+        normalizedMessage.includes(
+          "outcome already triggered for participant"
+        )
+      ) {
         setVerificationMessage(
           "Outcome Already Triggered - this participant has already completed this campaign successfully."
         );
-      } else if (normalizedMessage.includes("proof already used for this campaign")) {
+      } else if (
+        normalizedMessage.includes("proof already used for this campaign")
+      ) {
         setVerificationMessage(
           "Proof Already Used - this transaction proof has already been submitted for this campaign."
         );
@@ -558,6 +569,159 @@ function App() {
   const hasCompletedResult =
     verificationStatus === "complete" && verificationResult?.found;
 
+  const newestCampaigns = [...campaigns].sort(
+    (a, b) =>
+      Number(b.campaign_id || 0) - Number(a.campaign_id || 0)
+  );
+
+  const homeCampaigns = newestCampaigns.slice(0, 6);
+
+  const filteredCampaigns = [...campaigns]
+    .filter((campaign) => {
+      if (campaignStatus === "ACTIVE" && !campaign.active) {
+        return false;
+      }
+
+      if (campaignStatus === "INACTIVE" && campaign.active) {
+        return false;
+      }
+
+      const query = campaignSearch.trim().toLowerCase();
+
+      if (!query) {
+        return true;
+      }
+
+      const searchableText = [
+        campaign.title,
+        campaign.description,
+        campaign.requirement,
+        campaign.category,
+        campaign.network,
+        campaign.outcome_type,
+        campaign.outcome_value,
+        campaign.campaign_id,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return searchableText.includes(query);
+    })
+    .sort((a, b) => {
+      const left = Number(a.campaign_id || 0);
+      const right = Number(b.campaign_id || 0);
+
+      return campaignSort === "OLDEST"
+        ? left - right
+        : right - left;
+    });
+
+  const visibleDirectoryCampaigns = filteredCampaigns.slice(
+    0,
+    visibleCampaignCount
+  );
+
+  const openCampaignDirectory = () => {
+    setShowCampaignDirectory(true);
+    setVisibleCampaignCount(12);
+    setWalletMenuOpen(false);
+
+    window.requestAnimationFrame(() => {
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
+    });
+  };
+
+  const closeCampaignDirectory = () => {
+    setShowCampaignDirectory(false);
+    setCampaignSearch("");
+    setCampaignStatus("ALL");
+    setCampaignSort("NEWEST");
+    setVisibleCampaignCount(12);
+    setWalletMenuOpen(false);
+
+    window.requestAnimationFrame(() => {
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
+    });
+  };
+
+  const renderCampaignCard = (
+    campaign,
+    index,
+    featured = false
+  ) => (
+    <article
+      className={
+        featured && index === 0
+          ? "campaignCard featuredCampaign"
+          : "campaignCard"
+      }
+      key={campaign.campaign_id}
+    >
+      <div className="cardTop">
+        <span className="category">
+          {campaign.category || "ONCHAIN"}
+        </span>
+
+        <span
+          className={
+            campaign.active ? "activeBadge" : "inactiveBadge"
+          }
+        >
+          {campaign.active ? "ACTIVE" : "INACTIVE"}
+        </span>
+      </div>
+
+      <h3>{campaign.title}</h3>
+
+      <p>
+        {campaign.description ||
+          "A verifiable ProofFlow campaign stored on GenLayer."}
+      </p>
+
+      <div className="requirement">
+        <span>REQUIREMENT</span>
+        <strong>{campaign.requirement}</strong>
+      </div>
+
+      <div className="campaignMeta">
+        <div>
+          <span>NETWORK</span>
+          <strong>{getNetworkLabel(campaign)}</strong>
+        </div>
+
+        <div>
+          <span>OUTCOME</span>
+          <strong>
+            {campaign.outcome_value || campaign.outcome_type}
+          </strong>
+        </div>
+      </div>
+
+      <button
+        className="verifyButton"
+        onClick={() => openVerification(campaign)}
+        disabled={!campaign.active}
+      >
+        <span>
+          {campaign.active
+            ? "View & Verify"
+            : "Campaign Inactive"}
+        </span>
+
+        {campaign.active && (
+          <span className="buttonArrow">&rarr;</span>
+        )}
+      </button>
+    </article>
+  );
+
   return (
     <div className="app">
       <header className="navbar">
@@ -571,15 +735,55 @@ function App() {
         </div>
 
         <nav>
-          <a href="#campaigns">Campaigns</a>
-          <a href="#how">How it works</a>
+          {showCampaignDirectory ? (
+            <a
+              href="#home"
+              onClick={(event) => {
+                event.preventDefault();
+                closeCampaignDirectory();
+              }}
+            >
+              Home
+            </a>
+          ) : (
+            <>
+              <a
+                href="#campaigns"
+                onClick={(event) => {
+                  event.preventDefault();
+                  openCampaignDirectory();
+                }}
+              >
+                Campaigns
+              </a>
+
+              <a href="#how">How it works</a>
+            </>
+          )}
         </nav>
 
         <div className="walletArea">
-          <button className="walletButton" onClick={handleWalletButton}>
-            <span className={wallet ? "walletDot connected" : "walletDot"} />
-            {wallet ? shortenAddress(wallet) : "Connect Wallet"}
-            {wallet && <span className="walletChevron">{"\u2304"}</span>}
+          <button
+            className="walletButton"
+            onClick={handleWalletButton}
+          >
+            <span
+              className={
+                wallet
+                  ? "walletDot connected"
+                  : "walletDot"
+              }
+            />
+
+            {wallet
+              ? shortenAddress(wallet)
+              : "Connect Wallet"}
+
+            {wallet && (
+              <span className="walletChevron">
+                {"\u2304"}
+              </span>
+            )}
           </button>
 
           {wallet && walletMenuOpen && (
@@ -595,335 +799,498 @@ function App() {
         </div>
       </header>
 
-      <main>
-        <section className="hero">
-          <div className="heroContent">
-            <div className="eyebrow">
-              POWERED BY GENLAYER INTELLIGENT CONTRACTS
-            </div>
+      <main id="home">
+        {showCampaignDirectory ? (
+          <section
+            className="campaignSection campaignDirectory"
+            id="campaigns"
+          >
+            <div className="directoryHeader">
+              <div>
+                <button
+                  className="backToHomeButton"
+                  onClick={closeCampaignDirectory}
+                >
+                  &larr; Back to Home
+                </button>
 
-            <h1>
-              Prove an action.
-              <br />
-              <span>Unlock the outcome.</span>
-            </h1>
+                <span className="eyebrow">
+                  CAMPAIGN DIRECTORY
+                </span>
 
-            <p>
-              ProofFlow lets organizations define verifiable actions and lets
-              participants prove completion using live evidence evaluated
-              through GenLayer validator consensus.
-            </p>
-
-            <div className="heroActions">
-              <a className="primaryButton" href="#campaigns">
-                Explore Campaigns
-              </a>
-
-              <button
-                className="secondaryButton"
-                onClick={openCampaignCreator}
-              >
-                Create Campaign
-              </button>
-            </div>
-
-            <div className="networkInfo">
-              <span className="statusDot" />
-              <span>GenLayer Studionet</span>
-
-              <span className="divider">&bull;</span>
-
-              <span>
-                Contract {shortenAddress(PROOFFLOW_CONTRACT)}
-              </span>
-            </div>
-          </div>
-
-          <div className="proofCard">
-            <div className="proofHeader">
-              <span>LIVE VERIFICATION FLOW</span>
-
-              <span className="liveBadge">
-                <span className="livePulse" />
-                LIVE
-              </span>
-            </div>
-
-            <div className="proofFlow">
-              <div className="proofStep complete">
-                <span>01</span>
-
-                <div>
-                  <strong>Action detected</strong>
-                  <p>Ethereum Sepolia</p>
-                </div>
-
-                <b>{"\u2713"}</b>
-              </div>
-
-              <div className="flowLine" />
-
-              <div className="proofStep complete">
-                <span>02</span>
-
-                <div>
-                  <strong>Evidence retrieved</strong>
-                  <p>Live blockchain data</p>
-                </div>
-
-                <b>{"\u2713"}</b>
-              </div>
-
-              <div className="flowLine" />
-
-              <div className="proofStep complete">
-                <span>03</span>
-
-                <div>
-                  <strong>Consensus reached</strong>
-                  <p>GenLayer validators</p>
-                </div>
-
-                <b>{"\u2713"}</b>
-              </div>
-
-              <div className="flowLine" />
-
-              <div className="proofStep complete">
-                <span>04</span>
-
-                <div>
-                  <strong>Outcome unlocked</strong>
-                  <p>One-time outcome triggered</p>
-                </div>
-
-                <b>{"\u2713"}</b>
-              </div>
-            </div>
-
-            <div className="proofFooter">
-              <span>Example verified flow</span>
-              <strong>PASS</strong>
-            </div>
-          </div>
-        </section>
-
-        <section className="stats">
-          <div>
-            <strong>Live</strong>
-            <span>Evidence</span>
-          </div>
-
-          <div>
-            <strong>AI</strong>
-            <span>Evaluation</span>
-          </div>
-
-          <div>
-            <strong>Consensus</strong>
-            <span>Verification</span>
-          </div>
-
-          <div>
-            <strong>Onchain</strong>
-            <span>Results</span>
-          </div>
-        </section>
-
-        <section className="campaignSection" id="campaigns">
-          <div className="sectionHeading">
-            <div>
-              <span className="eyebrow">ACTIVE CAMPAIGNS</span>
-              <h2>Complete actions. Prove the result.</h2>
-            </div>
-
-            <button
-              className="createCampaignButton"
-              onClick={openCampaignCreator}
-            >
-              + Create Campaign
-            </button>
-          </div>
-
-          {campaignLoading && (
-            <div className="campaignNotice">
-              Loading campaigns from GenLayer...
-            </div>
-          )}
-
-          {!campaignLoading && campaignError && campaigns.length === 0 && (
-            <div className="campaignNotice error">
-              {campaignError}
-            </div>
-          )}
-
-          <div className="campaignGrid">
-            {campaigns.map((campaign, index) => (
-              <article
-                className={
-                  index === 0
-                    ? "campaignCard featuredCampaign"
-                    : "campaignCard"
-                }
-                key={campaign.campaign_id}
-              >
-                <div className="cardTop">
-                  <span className="category">
-                    {campaign.category || "ONCHAIN"}
-                  </span>
-
-                  <span
-                    className={
-                      campaign.active
-                        ? "activeBadge"
-                        : "inactiveBadge"
-                    }
-                  >
-                    {campaign.active ? "ACTIVE" : "INACTIVE"}
-                  </span>
-                </div>
-
-                <h3>{campaign.title}</h3>
+                <h2>Browse all ProofFlow campaigns.</h2>
 
                 <p>
-                  {campaign.description ||
-                    "A verifiable ProofFlow campaign stored on GenLayer."}
+                  Search, filter and explore available campaigns without
+                  crowding the ProofFlow homepage.
+                </p>
+              </div>
+
+              <button
+                className="createCampaignButton"
+                onClick={openCampaignCreator}
+              >
+                + Create Campaign
+              </button>
+            </div>
+
+            <div className="campaignBrowserControls">
+              <label className="campaignSearchField">
+                <span>SEARCH</span>
+
+                <input
+                  type="search"
+                  value={campaignSearch}
+                  onChange={(event) =>
+                    setCampaignSearch(event.target.value)
+                  }
+                  placeholder="Search title, requirement, outcome..."
+                />
+              </label>
+
+              <label className="campaignControlField">
+                <span>STATUS</span>
+
+                <select
+                  value={campaignStatus}
+                  onChange={(event) =>
+                    setCampaignStatus(event.target.value)
+                  }
+                >
+                  <option value="ALL">All campaigns</option>
+                  <option value="ACTIVE">Active only</option>
+                  <option value="INACTIVE">Inactive only</option>
+                </select>
+              </label>
+
+              <label className="campaignControlField">
+                <span>SORT</span>
+
+                <select
+                  value={campaignSort}
+                  onChange={(event) =>
+                    setCampaignSort(event.target.value)
+                  }
+                >
+                  <option value="NEWEST">Newest first</option>
+                  <option value="OLDEST">Oldest first</option>
+                </select>
+              </label>
+            </div>
+
+            {campaignLoading && (
+              <div className="campaignNotice">
+                Loading campaigns from GenLayer...
+              </div>
+            )}
+
+            {!campaignLoading &&
+              campaignError &&
+              campaigns.length === 0 && (
+                <div className="campaignNotice error">
+                  {campaignError}
+                </div>
+              )}
+
+            {!campaignLoading && campaigns.length > 0 && (
+              <div className="directoryResultsBar">
+                <span>
+                  {filteredCampaigns.length} campaign
+                  {filteredCampaigns.length === 1 ? "" : "s"} found
+                </span>
+
+                {(campaignSearch ||
+                  campaignStatus !== "ALL" ||
+                  campaignSort !== "NEWEST") && (
+                  <button
+                    onClick={() => {
+                      setCampaignSearch("");
+                      setCampaignStatus("ALL");
+                      setCampaignSort("NEWEST");
+                    }}
+                  >
+                    Clear filters
+                  </button>
+                )}
+              </div>
+            )}
+
+            {!campaignLoading &&
+              campaigns.length > 0 &&
+              filteredCampaigns.length === 0 && (
+                <div className="campaignNotice">
+                  No campaigns match your current search or filters.
+                </div>
+              )}
+
+            <div className="campaignGrid directoryCampaignGrid">
+              {visibleDirectoryCampaigns.map((campaign, index) =>
+                renderCampaignCard(campaign, index)
+              )}
+            </div>
+
+            {visibleCampaignCount < filteredCampaigns.length && (
+              <div className="loadMoreCampaigns">
+                <button
+                  onClick={() =>
+                    setVisibleCampaignCount(
+                      (current) => current + 12
+                    )
+                  }
+                >
+                  Load 12 More
+                </button>
+
+                <span>
+                  Showing {visibleDirectoryCampaigns.length} of{" "}
+                  {filteredCampaigns.length}
+                </span>
+              </div>
+            )}
+
+            {filteredCampaigns.length > 0 &&
+              visibleCampaignCount >= filteredCampaigns.length && (
+                <div className="directoryEnd">
+                  Showing all {filteredCampaigns.length} matching campaign
+                  {filteredCampaigns.length === 1 ? "" : "s"}.
+                </div>
+              )}
+          </section>
+        ) : (
+          <>
+            <section className="hero">
+              <div className="heroContent">
+                <div className="eyebrow">
+                  POWERED BY GENLAYER INTELLIGENT CONTRACTS
+                </div>
+
+                <h1>
+                  Prove an action.
+                  <br />
+                  <span>Unlock the outcome.</span>
+                </h1>
+
+                <p>
+                  ProofFlow lets organizations define verifiable actions and
+                  lets participants prove completion using independently
+                  sourced evidence evaluated through GenLayer validator
+                  consensus.
                 </p>
 
-                <div className="requirement">
-                  <span>REQUIREMENT</span>
-                  <strong>{campaign.requirement}</strong>
+                <div className="heroActions">
+                  <a
+                    className="primaryButton"
+                    href="#campaigns"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      openCampaignDirectory();
+                    }}
+                  >
+                    Explore Campaigns
+                  </a>
+
+                  <button
+                    className="secondaryButton"
+                    onClick={openCampaignCreator}
+                  >
+                    Create Campaign
+                  </button>
                 </div>
 
-                <div className="campaignMeta">
-                  <div>
-                    <span>NETWORK</span>
-                    <strong>{getNetworkLabel(campaign)}</strong>
-                  </div>
+                <div className="networkInfo">
+                  <span className="statusDot" />
+                  <span>GenLayer Studionet</span>
 
-                  <div>
-                    <span>OUTCOME</span>
-                    <strong>
-                      {campaign.outcome_value || campaign.outcome_type}
-                    </strong>
-                  </div>
-                </div>
+                  <span className="divider">&bull;</span>
 
-                <button
-                  className="verifyButton"
-                  onClick={() => openVerification(campaign)}
-                  disabled={!campaign.active}
-                >
                   <span>
-                    {campaign.active ? "View & Verify" : "Campaign Inactive"}
+                    Contract {shortenAddress(PROOFFLOW_CONTRACT)}
                   </span>
-                  {campaign.active && (
-                    <span className="buttonArrow">&rarr;</span>
-                  )}
-                </button>
-              </article>
-            ))}
-
-            <article className="campaignCard coming">
-              <div className="cardTop">
-                <span className="category developer">DEVELOPER</span>
-                <span className="soonBadge">COMING NEXT</span>
+                </div>
               </div>
 
-              <h3>Developer Contribution Proof</h3>
+              <div className="proofCard">
+                <div className="proofHeader">
+                  <span>LIVE VERIFICATION FLOW</span>
 
-              <p>
-                Verify qualifying development activity using authoritative
-                repository evidence and GenLayer consensus.
-              </p>
+                  <span className="liveBadge">
+                    <span className="livePulse" />
+                    LIVE
+                  </span>
+                </div>
 
-              <div className="comingFeature">
-                <span>Repository evidence</span>
-                <span>Contribution rules</span>
-                <span>Consensus verification</span>
+                <div className="proofFlow">
+                  <div className="proofStep complete">
+                    <span>01</span>
+
+                    <div>
+                      <strong>Action detected</strong>
+                      <p>Ethereum Sepolia</p>
+                    </div>
+
+                    <b>{"\u2713"}</b>
+                  </div>
+
+                  <div className="flowLine" />
+
+                  <div className="proofStep complete">
+                    <span>02</span>
+
+                    <div>
+                      <strong>Evidence retrieved</strong>
+                      <p>Independent blockchain sources</p>
+                    </div>
+
+                    <b>{"\u2713"}</b>
+                  </div>
+
+                  <div className="flowLine" />
+
+                  <div className="proofStep complete">
+                    <span>03</span>
+
+                    <div>
+                      <strong>Consensus reached</strong>
+                      <p>GenLayer validators</p>
+                    </div>
+
+                    <b>{"\u2713"}</b>
+                  </div>
+
+                  <div className="flowLine" />
+
+                  <div className="proofStep complete">
+                    <span>04</span>
+
+                    <div>
+                      <strong>Outcome unlocked</strong>
+                      <p>One-time outcome triggered</p>
+                    </div>
+
+                    <b>{"\u2713"}</b>
+                  </div>
+                </div>
+
+                <div className="proofFooter">
+                  <span>Example verified flow</span>
+                  <strong>PASS</strong>
+                </div>
+              </div>
+            </section>
+
+            <section className="stats">
+              <div>
+                <strong>Live</strong>
+                <span>Evidence</span>
               </div>
 
-              <button className="disabledButton" disabled>
-                Coming Soon
-              </button>
-            </article>
-
-            <article className="campaignCard coming">
-              <div className="cardTop">
-                <span className="category realworld">REAL WORLD</span>
-                <span className="soonBadge">COMING NEXT</span>
+              <div>
+                <strong>AI</strong>
+                <span>Evaluation</span>
               </div>
 
-              <h3>Real-World Proof Campaign</h3>
-
-              <p>
-                Evaluate authoritative digital evidence for courses, events,
-                grants, loyalty programs and other real-world outcomes.
-              </p>
-
-              <div className="comingFeature">
-                <span>Authoritative evidence</span>
-                <span>AI evaluation</span>
-                <span>Trusted outcomes</span>
+              <div>
+                <strong>Consensus</strong>
+                <span>Verification</span>
               </div>
 
-              <button className="disabledButton" disabled>
-                Coming Soon
-              </button>
-            </article>
-          </div>
-        </section>
+              <div>
+                <strong>Onchain</strong>
+                <span>Results</span>
+              </div>
+            </section>
 
-        <section className="howSection" id="how">
-          <div className="sectionHeading">
-            <div>
-              <span className="eyebrow">THE PROOF LAYER</span>
-              <h2>From action to trusted outcome.</h2>
-            </div>
-          </div>
+            <section className="campaignSection" id="campaigns">
+              <div className="sectionHeading">
+                <div>
+                  <span className="eyebrow">
+                    RECENT CAMPAIGNS
+                  </span>
 
-          <div className="howGrid">
-            <div>
-              <span>01</span>
-              <h3>Define</h3>
+                  <h2>
+                    Complete actions. Prove the result.
+                  </h2>
 
-              <p>
-                A campaign creator defines the action, verification requirement and
-                outcome.
-              </p>
-            </div>
+                  <p className="campaignSectionCopy">
+                    Discover the newest ProofFlow campaigns.
+                  </p>
+                </div>
 
-            <div>
-              <span>02</span>
-              <h3>Complete</h3>
+                <div className="campaignHeadingActions">
+                  <button
+                    className="browseCampaignButton"
+                    onClick={openCampaignDirectory}
+                  >
+                    Browse All Campaigns
+                  </button>
 
-              <p>
-                A participant performs the required onchain or real-world
-                action.
-              </p>
-            </div>
+                  <button
+                    className="createCampaignButton"
+                    onClick={openCampaignCreator}
+                  >
+                    + Create Campaign
+                  </button>
+                </div>
+              </div>
 
-            <div>
-              <span>03</span>
-              <h3>Verify</h3>
+              {campaignLoading && (
+                <div className="campaignNotice">
+                  Loading campaigns from GenLayer...
+                </div>
+              )}
 
-              <p>
-                GenLayer validators independently evaluate authoritative
-                evidence.
-              </p>
-            </div>
+              {!campaignLoading &&
+                campaignError &&
+                campaigns.length === 0 && (
+                  <div className="campaignNotice error">
+                    {campaignError}
+                  </div>
+                )}
 
-            <div>
-              <span>04</span>
-              <h3>Unlock</h3>
+              {!campaignLoading && campaigns.length > 0 && (
+                <div className="campaignSummaryBar">
+                  <span>
+                    Showing {homeCampaigns.length} newest campaign
+                    {homeCampaigns.length === 1 ? "" : "s"}
+                  </span>
 
-              <p>
-                Consensus creates a trusted PASS or FAIL and triggers the
-                one-time outcome on success.
-              </p>
-            </div>
-          </div>
-        </section>
+                  <button onClick={openCampaignDirectory}>
+                    View all campaigns &rarr;
+                  </button>
+                </div>
+              )}
+
+              <div className="campaignGrid">
+                {homeCampaigns.map((campaign, index) =>
+                  renderCampaignCard(
+                    campaign,
+                    index,
+                    true
+                  )
+                )}
+
+                <article className="campaignCard coming">
+                  <div className="cardTop">
+                    <span className="category developer">
+                      DEVELOPER
+                    </span>
+
+                    <span className="soonBadge">
+                      COMING NEXT
+                    </span>
+                  </div>
+
+                  <h3>
+                    Developer Contribution Proof
+                  </h3>
+
+                  <p>
+                    Verify qualifying development activity using authoritative
+                    repository evidence and GenLayer consensus.
+                  </p>
+
+                  <div className="comingFeature">
+                    <span>Repository evidence</span>
+                    <span>Contribution rules</span>
+                    <span>Consensus verification</span>
+                  </div>
+
+                  <button className="disabledButton" disabled>
+                    Coming Soon
+                  </button>
+                </article>
+
+                <article className="campaignCard coming">
+                  <div className="cardTop">
+                    <span className="category realworld">
+                      REAL WORLD
+                    </span>
+
+                    <span className="soonBadge">
+                      COMING NEXT
+                    </span>
+                  </div>
+
+                  <h3>
+                    Real-World Proof Campaign
+                  </h3>
+
+                  <p>
+                    Evaluate authoritative digital evidence for courses,
+                    events, grants, loyalty programs and other real-world
+                    outcomes.
+                  </p>
+
+                  <div className="comingFeature">
+                    <span>Authoritative evidence</span>
+                    <span>AI evaluation</span>
+                    <span>Trusted outcomes</span>
+                  </div>
+
+                  <button className="disabledButton" disabled>
+                    Coming Soon
+                  </button>
+                </article>
+              </div>
+            </section>
+
+            <section className="howSection" id="how">
+              <div className="sectionHeading">
+                <div>
+                  <span className="eyebrow">
+                    THE PROOF LAYER
+                  </span>
+
+                  <h2>
+                    From action to trusted outcome.
+                  </h2>
+                </div>
+              </div>
+
+              <div className="howGrid">
+                <div>
+                  <span>01</span>
+                  <h3>Define</h3>
+
+                  <p>
+                    A campaign creator defines the action, verification
+                    requirement and outcome.
+                  </p>
+                </div>
+
+                <div>
+                  <span>02</span>
+                  <h3>Complete</h3>
+
+                  <p>
+                    A participant performs the required onchain or real-world
+                    action.
+                  </p>
+                </div>
+
+                <div>
+                  <span>03</span>
+                  <h3>Verify</h3>
+
+                  <p>
+                    GenLayer validators compare independently sourced
+                    blockchain evidence before reaching consensus.
+                  </p>
+                </div>
+
+                <div>
+                  <span>04</span>
+                  <h3>Unlock</h3>
+
+                  <p>
+                    Consensus creates a trusted PASS or FAIL and triggers the
+                    one-time outcome on success.
+                  </p>
+                </div>
+              </div>
+            </section>
+          </>
+        )}
       </main>
 
       <footer>
@@ -980,15 +1347,21 @@ function App() {
               onSubmit={handleCreateCampaign}
             >
               <div className="creatorIntro">
-                <div className="creatorIntroIcon">01</div>
+                <div className="creatorIntroIcon">
+                  01
+                </div>
 
                 <div>
-                  <strong>Onchain proof campaign</strong>
+                  <strong>
+                    Onchain proof campaign
+                  </strong>
+
                   <p>
                     This MVP verifies participant-specific Ethereum Sepolia
-                    transaction proofs. Participants submit their own transaction,
-                    ProofFlow retrieves the live chain facts, and GenLayer
-                    validators decide whether your requirement was satisfied.
+                    transaction proofs. Participant identity is derived from
+                    the connected wallet, and GenLayer validators compare
+                    independent blockchain evidence before deciding whether
+                    the requirement was satisfied.
                   </p>
                 </div>
               </div>
@@ -1020,7 +1393,9 @@ function App() {
                 </label>
 
                 <label className="creatorField fullWidth">
-                  <span>Verification requirement</span>
+                  <span>
+                    Verification requirement
+                  </span>
 
                   <textarea
                     name="requirement"
@@ -1030,6 +1405,7 @@ function App() {
                     rows="4"
                     disabled={creatorProcessing}
                   />
+
                   <small>
                     Write the condition clearly. GenLayer validators will
                     evaluate the evidence against this requirement.
@@ -1062,21 +1438,26 @@ function App() {
                     disabled={creatorProcessing}
                   />
                 </label>
-
               </div>
 
               {creatorStatus !== "idle" && (
-                <div className={`creatorStatus ${creatorStatus}`}>
+                <div
+                  className={`creatorStatus ${creatorStatus}`}
+                >
                   <div className="statusHeading">
                     {creatorProcessing && (
                       <span className="verificationSpinner" />
                     )}
 
                     {creatorStatus === "complete" && (
-                      <span className="creatorSuccessIcon">{"\u2713"}</span>
+                      <span className="creatorSuccessIcon">
+                        {"\u2713"}
+                      </span>
                     )}
 
-                    <strong>{creatorMessage}</strong>
+                    <strong>
+                      {creatorMessage}
+                    </strong>
                   </div>
 
                   {creatorTx && (
@@ -1095,7 +1476,9 @@ function App() {
                   onClick={closeCampaignCreator}
                   disabled={creatorProcessing}
                 >
-                  {creatorStatus === "complete" ? "Close" : "Cancel"}
+                  {creatorStatus === "complete"
+                    ? "Close"
+                    : "Cancel"}
                 </button>
 
                 {creatorStatus !== "complete" && (
@@ -1171,6 +1554,7 @@ function App() {
             <div className="verificationCampaignSummary">
               <div>
                 <span>NETWORK</span>
+
                 <strong>
                   {getNetworkLabel(selectedCampaign)}
                 </strong>
@@ -1183,6 +1567,7 @@ function App() {
 
               <div>
                 <span>OUTCOME</span>
+
                 <strong>
                   {selectedCampaign.outcome_value ||
                     selectedCampaign.outcome_type}
@@ -1198,7 +1583,9 @@ function App() {
                     : "progressStep"
                 }
               >
-                <span>{currentStep > 1 ? "\u2713" : "1"}</span>
+                <span>
+                  {currentStep > 1 ? "\u2713" : "1"}
+                </span>
                 <small>Wallet</small>
               </div>
 
@@ -1217,7 +1604,9 @@ function App() {
                     : "progressStep"
                 }
               >
-                <span>{currentStep > 2 ? "\u2713" : "2"}</span>
+                <span>
+                  {currentStep > 2 ? "\u2713" : "2"}
+                </span>
                 <small>Submit</small>
               </div>
 
@@ -1236,7 +1625,9 @@ function App() {
                     : "progressStep"
                 }
               >
-                <span>{currentStep > 3 ? "\u2713" : "3"}</span>
+                <span>
+                  {currentStep > 3 ? "\u2713" : "3"}
+                </span>
                 <small>Consensus</small>
               </div>
 
@@ -1255,7 +1646,9 @@ function App() {
                     : "progressStep"
                 }
               >
-                <span>{currentStep >= 4 ? "\u2713" : "4"}</span>
+                <span>
+                  {currentStep >= 4 ? "\u2713" : "4"}
+                </span>
                 <small>Result</small>
               </div>
             </div>
@@ -1264,24 +1657,12 @@ function App() {
               {!hasCompletedResult && (
                 <>
                   <p className="verificationCopy">
-                    Enter the participant wallet and that participant's Sepolia
-                    transaction hash. ProofFlow derives the trusted evidence
-                    request and submits the live evidence to GenLayer validators
-                    for consensus.
+                    Submit your Sepolia transaction hash. Your participant
+                    identity is derived directly from the connected wallet by
+                    the ProofFlow Intelligent Contract, while validators
+                    compare independent blockchain evidence before reaching
+                    consensus.
                   </p>
-
-                  <label className="walletField">
-                    <span>Participant wallet</span>
-
-                    <input
-                      value={participantWallet}
-                      onChange={(event) =>
-                        setParticipantWallet(event.target.value)
-                      }
-                      placeholder="0x..."
-                      disabled={isProcessing}
-                    />
-                  </label>
 
                   <label className="walletField">
                     <span>Sepolia transaction hash</span>
@@ -1289,7 +1670,9 @@ function App() {
                     <input
                       className="monospaceInput"
                       value={participantProof}
-                      onChange={(event) => setParticipantProof(event.target.value)}
+                      onChange={(event) =>
+                        setParticipantProof(event.target.value)
+                      }
                       placeholder="0x..."
                       disabled={isProcessing}
                     />
@@ -1300,7 +1683,11 @@ function App() {
               {hasCompletedResult && (
                 <div className="completedWallet">
                   <span>PARTICIPANT</span>
-                  <strong>{participantWallet}</strong>
+
+                  <strong>
+                    {verificationResult?.participant || wallet}
+                  </strong>
+
                   <span>PROOF</span>
                   <strong>{participantProof}</strong>
                 </div>
@@ -1309,7 +1696,10 @@ function App() {
               <button
                 className="runVerificationButton"
                 onClick={handleVerify}
-                disabled={isProcessing || !participantWallet.trim() || !participantProof.trim()}
+                disabled={
+                  isProcessing ||
+                  !participantProof.trim()
+                }
               >
                 {verificationStatus === "connecting"
                   ? "Connecting Wallet..."
@@ -1332,11 +1722,15 @@ function App() {
                     <>
                       <div
                         className={`resultSummary ${
-                          verificationResult.passed ? "pass" : "fail"
+                          verificationResult.passed
+                            ? "pass"
+                            : "fail"
                         }`}
                       >
                         <div className="resultSummaryIcon">
-                          {verificationResult.passed ? "\u2713" : "\u00D7"}
+                          {verificationResult.passed
+                            ? "\u2713"
+                            : "\u00D7"}
                         </div>
 
                         <div className="resultSummaryCopy">
@@ -1370,20 +1764,31 @@ function App() {
 
                       <div className="resultDetailsGrid">
                         <div className="resultDetailCard">
-                          <span>CONSENSUS REASONING</span>
-                          <p>{verificationResult.reasoning}</p>
+                          <span>
+                            CONSENSUS REASONING
+                          </span>
+
+                          <p>
+                            {verificationResult.reasoning}
+                          </p>
                         </div>
 
                         {verificationResult.evidence_ref && (
                           <div className="resultDetailCard">
                             <span>EVIDENCE</span>
-                            <p>{verificationResult.evidence_ref}</p>
+
+                            <p>
+                              {verificationResult.evidence_ref}
+                            </p>
                           </div>
                         )}
 
                         {outcomeRecord?.found && (
                           <div className="resultDetailCard">
-                            <span>OUTCOME TRIGGERED</span>
+                            <span>
+                              OUTCOME TRIGGERED
+                            </span>
+
                             <p>
                               Outcome #{outcomeRecord.outcome_id}
                               {" | "}
@@ -1399,7 +1804,10 @@ function App() {
                         <div className="compactTransaction">
                           <div>
                             <span>TRANSACTION</span>
-                            <code>{verificationTx}</code>
+
+                            <code>
+                              {verificationTx}
+                            </code>
                           </div>
                         </div>
                       )}
@@ -1423,13 +1831,18 @@ function App() {
                           <span className="verificationSpinner" />
                         )}
 
-                        <strong>{verificationMessage}</strong>
+                        <strong>
+                          {verificationMessage}
+                        </strong>
                       </div>
 
                       {verificationTx && (
                         <div className="transactionBox">
                           <span>TRANSACTION</span>
-                          <code>{verificationTx}</code>
+
+                          <code>
+                            {verificationTx}
+                          </code>
                         </div>
                       )}
                     </>

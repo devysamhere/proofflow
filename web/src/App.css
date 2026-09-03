@@ -1718,3 +1718,246 @@ footer {
     grid-template-columns: 1fr;
   }
 }
+
+/* =========================================================
+   CAMPAIGN DIRECTORY
+   ========================================================= */
+
+.campaignSectionCopy {
+  margin: 10px 0 0;
+  color: #7f889d;
+  font-size: 13px;
+  line-height: 1.6;
+  max-width: 620px;
+}
+
+.campaignHeadingActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.browseCampaignButton,
+.backToHomeButton,
+.loadMoreCampaigns button,
+.campaignSummaryBar button,
+.directoryResultsBar button {
+  border: 1px solid #2b3140;
+  background: #121620;
+  color: #c8cede;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+.browseCampaignButton:hover,
+.backToHomeButton:hover,
+.loadMoreCampaigns button:hover,
+.campaignSummaryBar button:hover,
+.directoryResultsBar button:hover {
+  border-color: rgba(124, 92, 255, 0.65);
+  background: rgba(124, 92, 255, 0.1);
+  color: #ffffff;
+}
+
+.campaignSummaryBar,
+.directoryResultsBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 20px;
+  padding: 13px 15px;
+  background: rgba(15, 18, 27, 0.72);
+  border: 1px solid #242a38;
+  border-radius: 12px;
+}
+
+.campaignSummaryBar span,
+.directoryResultsBar span {
+  color: #7f889d;
+  font-size: 12px;
+}
+
+.campaignSummaryBar button,
+.directoryResultsBar button {
+  padding: 8px 11px;
+  background: transparent;
+}
+
+.campaignDirectory {
+  min-height: 680px;
+}
+
+.directoryHeader {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 26px;
+}
+
+.directoryHeader h2 {
+  margin: 10px 0 8px;
+  font-size: 34px;
+  letter-spacing: -0.035em;
+}
+
+.directoryHeader p {
+  margin: 0;
+  color: #7f889d;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.backToHomeButton {
+  display: inline-flex;
+  margin-bottom: 20px;
+  padding: 8px 11px;
+}
+
+.campaignBrowserControls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 190px 190px;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding: 16px;
+  border: 1px solid #242a38;
+  border-radius: 14px;
+  background: rgba(15, 18, 27, 0.72);
+}
+
+.campaignSearchField,
+.campaignControlField {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.campaignSearchField span,
+.campaignControlField span {
+  color: #667087;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.campaignSearchField input,
+.campaignControlField select {
+  width: 100%;
+  min-height: 42px;
+  border-radius: 9px;
+  border: 1px solid #292f3f;
+  background: #0c0f16;
+  color: #d8dce7;
+  padding: 0 12px;
+  outline: none;
+  font: inherit;
+  font-size: 12px;
+}
+
+.campaignSearchField input::placeholder {
+  color: #555e72;
+}
+
+.campaignSearchField input:focus,
+.campaignControlField select:focus {
+  border-color: rgba(124, 92, 255, 0.7);
+  box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.08);
+}
+
+.campaignControlField select {
+  cursor: pointer;
+}
+
+.directoryCampaignGrid {
+  margin-top: 4px;
+}
+
+.loadMoreCampaigns {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: 28px;
+}
+
+.loadMoreCampaigns button {
+  min-width: 170px;
+  padding: 12px 18px;
+}
+
+.loadMoreCampaigns span,
+.directoryEnd {
+  color: #687187;
+  font-size: 11px;
+}
+
+.directoryEnd {
+  margin-top: 28px;
+  text-align: center;
+  padding: 14px;
+  border-top: 1px solid #202633;
+}
+
+@media (max-width: 900px) {
+  .campaignBrowserControls {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .campaignSearchField {
+    grid-column: 1 / -1;
+  }
+
+  .directoryHeader {
+    align-items: flex-start;
+  }
+
+  .campaignHeadingActions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 650px) {
+  .campaignHeadingActions,
+  .directoryHeader,
+  .campaignSummaryBar,
+  .directoryResultsBar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .campaignHeadingActions {
+    width: 100%;
+  }
+
+  .browseCampaignButton,
+  .campaignHeadingActions .createCampaignButton,
+  .directoryHeader .createCampaignButton {
+    width: 100%;
+  }
+
+  .campaignBrowserControls {
+    grid-template-columns: 1fr;
+  }
+
+  .campaignSearchField {
+    grid-column: auto;
+  }
+
+  .directoryHeader h2 {
+    font-size: 29px;
+  }
+
+  .campaignSummaryBar button,
+  .directoryResultsBar button {
+    width: 100%;
+  }
+}
